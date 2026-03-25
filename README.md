@@ -27,7 +27,7 @@ Patricio es un robot educativo diseñado para niños de entre 4 y 6 años de eda
 patricio/
 ├── patricio/                      # Paquete principal (CMake)
 ├── patricio_captacion/            # Módulo de captura sensorial y percepción
-├── patricio_mundo/                # Módulo de representación del entorno
+├── patricio_my_world/                # Módulo de representación del entorno
 ├── patricio_nav_punto/            # Navegación hacia puntos específicos
 └── patricio_nav_ruta/             # Planificación y seguimiento de rutas
 

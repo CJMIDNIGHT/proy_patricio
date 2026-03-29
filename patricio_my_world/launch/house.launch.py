@@ -7,23 +7,37 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
+    """
+    Genera la descripción de lanzamiento para el entorno de simulación.
 
+    Configura:
+    - Rutas de recursos de Gazebo (modelos propios y de TurtleBot3)
+    - Lanzamiento del simulador con el mundo definido
+    - Publicación del estado del robot
+    - Inserción del robot en el mundo
+
+    Returns:
+        LaunchDescription: conjunto de acciones a ejecutar en el lanzamiento.
+    """
+
+    # Obtener rutas de paquetes necesarios
     pkg = get_package_share_directory('patricio_my_world')
     ros_gz_sim = get_package_share_directory('ros_gz_sim')
     launch_dir = os.path.join(pkg, 'launch')
     world = os.path.join(pkg, 'worlds', 'house.sdf')
 
+    # Parámetros configurables
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     x_pose = LaunchConfiguration('x_pose', default='1.0')
     y_pose = LaunchConfiguration('y_pose', default='1.0')
 
-    # 🔥 MODELOS LOCALES (LOS TUYOS)
+    # Añade la carpeta de modelos propios al buscador de recursos de Gazebo
     set_env_models = AppendEnvironmentVariable(
         'GZ_SIM_RESOURCE_PATH',
         os.path.join(pkg, 'models')
     )
 
-    # 🔥 MODELOS DE TURTLEBOT (MUY IMPORTANTE PARA ROBOT)
+    # Añade los modelos oficiales de TurtleBot3
     set_env_tb3 = AppendEnvironmentVariable(
         'GZ_SIM_RESOURCE_PATH',
         os.path.join(
@@ -32,7 +46,7 @@ def generate_launch_description():
         )
     )
 
-    # 🔥 Gazebo (UNA SOLA VEZ)
+    # Lanza el simulador Gazebo con el mundo especificado
     gz_sim_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(ros_gz_sim, 'launch', 'gz_sim.launch.py')
@@ -42,7 +56,7 @@ def generate_launch_description():
         }.items()
     )
 
-    # 🔥 robot_state_publisher
+    # Publica las transformaciones del robot (TF)
     robot_state_publisher_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(launch_dir, 'robot_state_publisher.launch.py')
@@ -50,7 +64,7 @@ def generate_launch_description():
         launch_arguments={'use_sim_time': use_sim_time}.items()
     )
 
-    # 🔥 spawn robot
+    # Inserta el robot en el mundo con la posición inicial indicada
     spawn_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(launch_dir, 'spawn_turtlebot3.launch.py')
@@ -61,9 +75,10 @@ def generate_launch_description():
         }.items()
     )
 
+    # Construcción de la descripción de lanzamiento
     ld = LaunchDescription()
 
-    # 🔥 ORDEN CLAVE
+    # Orden importante: primero recursos, luego simulación y robot
     ld.add_action(set_env_models)
     ld.add_action(set_env_tb3)
     ld.add_action(gz_sim_cmd)

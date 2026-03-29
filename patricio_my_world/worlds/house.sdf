@@ -2,19 +2,28 @@
 <sdf version="1.8">
   <world name="house">
 
+    <!-- 🔥 PLUGINS OBLIGATORIOS (CLAVE PARA LIDAR) -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
     <!-- 🌞 LUZ (SIN SOMBRAS) -->
     <light type="directional" name="sun">
-      <cast_shadows>false</cast_shadows> <!-- 🔥 CAMBIO CLAVE -->
+      <cast_shadows>false</cast_shadows>
       <pose>0 0 10 0 0 0</pose>
       <diffuse>1 1 1 1</diffuse>
       <specular>0.2 0.2 0.2 1</specular>
       <direction>-0.5 0.1 -0.9</direction>
     </light>
 
-    <!-- 🌍 ESCENA (MÁS LUZ AMBIENTE) -->
+    <!-- 🌍 ESCENA -->
     <scene>
-      <ambient>0.6 0.6 0.6 1</ambient> <!-- 🔥 MÁS CLARO -->
+      <ambient>0.6 0.6 0.6 1</ambient>
       <background>0.8 0.8 0.8 1</background>
+      <shadows>false</shadows>
     </scene>
 
     <!-- 🟫 SUELO -->
@@ -46,7 +55,6 @@
         </collision>
         <visual name="visual">
           <geometry><box><size>10 0.2 2.5</size></box></geometry>
-          <material><ambient>0.9 0.9 0.9 1</ambient></material>
         </visual>
       </link>
     </model>
@@ -60,7 +68,6 @@
         </collision>
         <visual name="visual">
           <geometry><box><size>10 0.2 2.5</size></box></geometry>
-          <material><ambient>0.9 0.9 0.9 1</ambient></material>
         </visual>
       </link>
     </model>
@@ -74,7 +81,6 @@
         </collision>
         <visual name="visual">
           <geometry><box><size>0.2 8 2.5</size></box></geometry>
-          <material><ambient>0.9 0.9 0.9 1</ambient></material>
         </visual>
       </link>
     </model>
@@ -88,39 +94,35 @@
         </collision>
         <visual name="visual">
           <geometry><box><size>0.2 8 2.5</size></box></geometry>
-          <material><ambient>0.9 0.9 0.9 1</ambient></material>
         </visual>
       </link>
     </model>
 
     <!-- ================= SALÓN ================= -->
-<!-- ================= SALÓN ================= -->
 
-<!-- ================= SALÓN ================= -->
+    <!-- 🛋️ SOFÁ -->
+    <include>
+      <uri>model://Sofa</uri>
+      <pose>-2 2 0 0 0 -1.57</pose>
+    </include>
 
-<!-- 🛋️ SOFÁ (mirando hacia la tele) -->
-<include>
-  <uri>model://Sofa</uri>
-  <pose>-2 2 0 0 0 -1.57</pose>   <!-- 🔥 girado correctamente -->
-</include>
+    <!-- 📺 MUEBLE TV -->
+    <include>
+      <uri>model://TVStand</uri>
+      <pose>-2 0.5 0 0 0 0</pose>
+    </include>
 
-<!-- 📺 MUEBLE -->
-<include>
-  <uri>model://TVStand</uri>
-  <pose>-2 0.5 0 0 0 0</pose>
-</include>
+    <!-- 📺 TELE -->
+    <include>
+      <uri>model://Tv</uri>
+      <pose>-2 0.5 0.8 0 0 -1.57</pose>
+    </include>
 
-<!-- 📺 TELE (mirando al sofá) -->
-<include>
-  <uri>model://Tv</uri>
-  <pose>-2 0.5 0.8 0 0 -1.57</pose>   <!-- 🔥 ESTE ES EL BUENO -->
-</include>
-
-<!-- 🍽️ COMEDOR -->
-<include>
-  <uri>model://Dining_Table</uri>
-  <pose>2 0 0 0 0 0</pose>
-</include>
+    <!-- 🍽️ COMEDOR -->
+    <include>
+      <uri>model://Dining_Table</uri>
+      <pose>2 0 0 0 0 0</pose>
+    </include>
 
   </world>
 </sdf>

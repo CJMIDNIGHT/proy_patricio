@@ -14,17 +14,26 @@ def generate_launch_description():
     world = os.path.join(pkg, 'worlds', 'house.sdf')
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
-    x_pose = LaunchConfiguration('x_pose', default='2.0')
-    y_pose = LaunchConfiguration('y_pose', default='2.0')
+    x_pose = LaunchConfiguration('x_pose', default='1.0')
+    y_pose = LaunchConfiguration('y_pose', default='1.0')
 
-    # 🔥 PATH MODELOS (IMPORTANTE)
-    set_env = AppendEnvironmentVariable(
+    # 🔥 MODELOS LOCALES (LOS TUYOS)
+    set_env_models = AppendEnvironmentVariable(
         'GZ_SIM_RESOURCE_PATH',
         os.path.join(pkg, 'models')
     )
 
-    # 🔥 Gazebo (SOLO UNA VEZ)
-    gzserver_cmd = IncludeLaunchDescription(
+    # 🔥 MODELOS DE TURTLEBOT (MUY IMPORTANTE PARA ROBOT)
+    set_env_tb3 = AppendEnvironmentVariable(
+        'GZ_SIM_RESOURCE_PATH',
+        os.path.join(
+            get_package_share_directory('turtlebot3_gazebo'),
+            'models'
+        )
+    )
+
+    # 🔥 Gazebo (UNA SOLA VEZ)
+    gz_sim_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
@@ -54,9 +63,10 @@ def generate_launch_description():
 
     ld = LaunchDescription()
 
-    # 🔥 ORDEN CORRECTO
-    ld.add_action(set_env)
-    ld.add_action(gzserver_cmd)
+    # 🔥 ORDEN CLAVE
+    ld.add_action(set_env_models)
+    ld.add_action(set_env_tb3)
+    ld.add_action(gz_sim_cmd)
     ld.add_action(robot_state_publisher_cmd)
     ld.add_action(spawn_cmd)
 

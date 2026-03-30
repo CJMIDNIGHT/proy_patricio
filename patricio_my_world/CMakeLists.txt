@@ -21,6 +21,10 @@ add_executable(keyboard_teleop src/keyboard_teleop.cpp)
 ament_target_dependencies(keyboard_teleop rclcpp geometry_msgs)
 install(TARGETS keyboard_teleop DESTINATION lib/${PROJECT_NAME})
 
+add_executable(robot_pose_display src/robot_pose_display.cpp)
+ament_target_dependencies(robot_pose_display rclcpp nav_msgs)
+install(TARGETS robot_pose_display DESTINATION lib/${PROJECT_NAME})
+
 install(
   DIRECTORY launch worlds rviz src include models params urdf
   DESTINATION share/${PROJECT_NAME}

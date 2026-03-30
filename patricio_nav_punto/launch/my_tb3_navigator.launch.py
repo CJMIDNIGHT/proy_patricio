@@ -69,6 +69,15 @@ def generate_launch_description():
                 'use_sim_time': use_sim_time,
                 'params_file': param_dir}.items(),
         ),
+        
+        #Lanzar Robot State Publisher para simular el estado del robot en RViz
+        
+        Node(
+            package='robot_state_publisher',
+            executable='robot_state_publisher',
+            name='robot_state_publisher',
+            parameters=[param_dir, {'use_sim_time': use_sim_time}],
+            output='screen'),
 
         Node(
             package='rviz2',

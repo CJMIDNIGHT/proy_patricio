@@ -12,9 +12,12 @@ from launch_ros.actions import Node
 TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
 ROS_DISTRO = os.environ.get('ROS_DISTRO')
 
+nav2_yaml = os.path.join(get_package_share_directory('patricio_nav_punto'), 'param', 'burger.yaml')
+
+
 
 def generate_launch_description():
-    use_sim_time = LaunchConfiguration('use_sim_time', default='false')
+    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     map_dir = LaunchConfiguration(
         'map',
         default=os.path.join(
@@ -59,7 +62,7 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'use_sim_time',
-            default_value='false',
+            default_value='true',
             description='Use simulation (Gazebo) clock if true'),
 
         IncludeLaunchDescription(
@@ -70,14 +73,13 @@ def generate_launch_description():
                 'params_file': param_dir}.items(),
         ),
         
-        #Lanzar Robot State Publisher para simular el estado del robot en RViz
-        
         Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            name='robot_state_publisher',
-            parameters=[param_dir, {'use_sim_time': use_sim_time}],
-            output='screen'),
+            package='nav2_amcl',
+            executable='amcl',
+            name='amcl',
+            output='screen',
+            parameters=[nav2_yaml]
+        ),
 
         Node(
             package='rviz2',

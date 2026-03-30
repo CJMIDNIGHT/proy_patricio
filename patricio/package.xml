@@ -15,7 +15,7 @@
  <buildtool_depend>ament_cmake</buildtool_depend>
  <exec_depend>patricio_mundo</exec_depend>
  <exec_depend>patricio_nav_punto</exec_depend>
-<exec_depend>patricio_nav_ruta</exec_depend>
+ <exec_depend>patricio_nav_ruta</exec_depend>
  <exec_depend>patricio_captacion</exec_depend>
  <export>
  <build_type>ament_cmake</build_type>

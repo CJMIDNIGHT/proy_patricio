@@ -83,7 +83,7 @@ source install/setup.bash
 ### Iniciar el sistema completo
 
 ```bash
-ros2 launch patricio patricio.launch.py
+ros2 launch patricio_my_world house.launch.py
 ```
 
 ### Iniciar módulos de forma individual

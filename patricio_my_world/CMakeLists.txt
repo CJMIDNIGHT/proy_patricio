@@ -15,7 +15,33 @@ find_package(nav_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(gz_math_vendor REQUIRED)
 find_package(gz_sim_vendor REQUIRED)
+find_package(gz-sim REQUIRED)
+find_package(gz_plugin_vendor REQUIRED)
+find_package(gz-plugin REQUIRED)
 
+
+link_directories(
+  ${GAZEBO_LIBRARY_DIRS}
+  ${GZ_SIM_LIBRARY_DIRS}
+)
+
+include_directories(
+  include
+  ${GAZEBO_INCLUDE_DIRS}
+  ${gz_sim_vendor_INCLUDE_DIRS}
+  ${GZ_SIM_INCLUDE_DIRS}
+)
+
+set(EXEC_NAME "turtlebot3_drive")
+
+add_executable(${EXEC_NAME} src/turtlebot3_drive.cpp)
+target_link_libraries(${EXEC_NAME}
+  ${geometry_msgs_TARGETS}
+  ${nav_msgs_TARGETS}
+  ${sensor_msgs_TARGETS}
+  rclcpp::rclcpp
+  tf2::tf2
+)
 
 add_executable(keyboard_teleop src/keyboard_teleop.cpp)
 ament_target_dependencies(keyboard_teleop rclcpp geometry_msgs)

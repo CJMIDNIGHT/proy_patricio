@@ -5,6 +5,8 @@ from launch.actions import AppendEnvironmentVariable
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
 
 def generate_launch_description():
     """
@@ -42,8 +44,8 @@ def generate_launch_description():
     # Permiten sobreescribir valores desde la línea de comandos al lanzar
     # -----------------------------------------------------------------------
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
-    x_pose = LaunchConfiguration('x_pose', default='-2.0')
-    y_pose = LaunchConfiguration('y_pose', default='-2.0')
+    x_pose = LaunchConfiguration('x_pose', default='0.0')
+    y_pose = LaunchConfiguration('y_pose', default='0.0')
 
     # -----------------------------------------------------------------------
     # Variables de entorno — modelos propios
@@ -111,6 +113,8 @@ def generate_launch_description():
             'y_pose': y_pose
         }.items()
     )
+    
+    
 
     # -----------------------------------------------------------------------
     # Construcción del LaunchDescription
@@ -123,5 +127,17 @@ def generate_launch_description():
     ld.add_action(gz_sim_cmd)
     ld.add_action(robot_state_publisher_cmd)
     ld.add_action(spawn_cmd)
+    
+    bridge_cmd = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        parameters=[{
+            'config_file': os.path.join(pkg, 'config', 'turtlebot3_burger_bridge.yaml'),
+            'qos_overrides./tf_static.publisher.durability': 'transient_local',
+        }],
+        output='screen'
+    )
+    
+    ld.add_action(bridge_cmd)
 
     return ld

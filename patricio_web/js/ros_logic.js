@@ -1,43 +1,91 @@
-// ros_logic.js — Game logic for Patricio admin panel
-// Topics:
-//   /patricio/juego  (std_msgs/msg/String) → publish "pilla_pilla" or "escondite"
-//   /patricio/estado (std_msgs/msg/String) → subscribe for robot status feedback
+// ros_logic.js — Pilla-Pilla game logic
+// ROS topics:
+//   /patricio/pilla_pilla/cmd    (std_msgs/msg/String) ← publish "STOP"
+//   /patricio/pilla_pilla/status (std_msgs/msg/String) → subscribe for feedback
+// Game START goes via Flask API → ROS service /start_game
 
-let juegoPublisher = null;
-let estadoSubscriber = null;
+let cmdPublisher = null;
+let statusSubscriber = null;
 let juegoActivo = null;
 
+const API_BASE = `http://localhost:5000`;
+
 function initGameTopics(rosInstance) {
-    juegoPublisher = new ROSLIB.Topic({
+    // Publisher for stop commands
+    cmdPublisher = new ROSLIB.Topic({
         ros: rosInstance,
-        name: '/patricio/juego',
+        name: '/patricio/pilla_pilla/cmd',
         messageType: 'std_msgs/msg/String'
     });
 
-    estadoSubscriber = new ROSLIB.Topic({
+    // Subscriber for robot status feedback
+    statusSubscriber = new ROSLIB.Topic({
         ros: rosInstance,
-        name: '/patricio/estado',
+        name: '/patricio/pilla_pilla/status',
         messageType: 'std_msgs/msg/String'
     });
 
-    estadoSubscriber.subscribe(function(message) {
-        console.log('Estado de Patricio:', message.data);
-        updateBubble(message.data);
+    statusSubscriber.subscribe(function(message) {
+        console.log('Estado pilla_pilla:', message.data);
         handleGameFeedback(message.data);
     });
 
     console.log('Tópicos de juego inicializados');
 }
 
-function publishJuego(juego) {
-    if (!juegoPublisher) {
-        console.warn('Publisher no inicializado. Conecta primero.');
+// Called when Pilla-Pilla button is clicked
+// Calls the Flask API which calls the /start_game ROS service
+async function iniciarJuego(juego) {
+    if (!cmdPublisher) {
+        alert('Conecta con el robot primero.');
         return;
     }
 
-    const msg = new ROSLIB.Message({ data: juego });
-    juegoPublisher.publish(msg);
-    console.log('Publicado en /patricio/juego:', juego);
+    if (juego !== 'pilla_pilla') {
+        updateBubble('⚠️ Solo Pilla-Pilla está disponible por ahora.');
+        return;
+    }
+
+    juegoActivo = juego;
+    setGameButtonState(juego, 'juego-activo');
+    updateBubble('Patricio está iniciando Pilla-Pilla...');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/juego/iniciar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ game_name: 'pilla_pilla' })
+        });
+
+        const result = await response.json();
+        console.log('API response:', result);
+
+        if (!result.started) {
+            updateBubble('⚠️ No se pudo iniciar el juego: ' + (result.error || 'error desconocido'));
+            setGameButtonState(null, '');
+            juegoActivo = null;
+        }
+
+    } catch (err) {
+        console.error('Error llamando a la API:', err);
+        updateBubble('❌ No se pudo conectar con la API del juego.');
+        setGameButtonState(null, '');
+        juegoActivo = null;
+    }
+}
+
+// Called when Stop button is clicked
+// Publishes directly to /patricio/pilla_pilla/cmd via rosbridge
+function detenerJuego() {
+    if (cmdPublisher) {
+        const msg = new ROSLIB.Message({ data: 'STOP' });
+        cmdPublisher.publish(msg);
+        console.log('Publicado STOP en /patricio/pilla_pilla/cmd');
+    }
+
+    juegoActivo = null;
+    setGameButtonState(null, '');
+    updateBubble('Patricio está esperando instrucciones...');
 }
 
 function updateBubble(texto) {
@@ -46,9 +94,10 @@ function updateBubble(texto) {
 }
 
 function setGameButtonState(juego, estado) {
-    // Reset all buttons
-    document.getElementById('btn_pilla_pilla').className = 'boton game-btn';
-    document.getElementById('btn_escondite').className = 'boton game-btn';
+    const btnPilla = document.getElementById('btn_pilla_pilla');
+    const btnEscondite = document.getElementById('btn_escondite');
+    if (btnPilla) btnPilla.className = 'boton game-btn';
+    if (btnEscondite) btnEscondite.className = 'boton game-btn';
 
     if (!juego) return;
 
@@ -58,37 +107,17 @@ function setGameButtonState(juego, estado) {
 }
 
 function handleGameFeedback(estado) {
-    // Adjust these strings to match what your coworkers publish from patricio_nav_punto
-    if (estado.includes('exito') || estado.includes('encontrado')) {
-        setGameButtonState(juegoActivo, 'juego-exito');
-        updateBubble('Patricio completó el juego con éxito!');
-    } else if (estado.includes('fallo') || estado.includes('perdido')) {
-        setGameButtonState(juegoActivo, 'juego-fallo');
-        updateBubble('Patricio no pudo completar el juego.');
+    const lower = estado.toLowerCase();
+
+    if (lower.includes('corriendo')) {
+        setGameButtonState('pilla_pilla', 'juego-activo');
+        updateBubble('🏃 Patricio está corriendo en Pilla-Pilla!');
+        juegoActivo = 'pilla_pilla';
+    } else if (lower.includes('descansando')) {
+        setGameButtonState(null, '');
+        updateBubble('😴 Patricio está descansando...');
+        juegoActivo = null;
     } else {
-        setGameButtonState(juegoActivo, 'juego-activo');
-        updateBubble('Patricio está ' + estado);
+        updateBubble('Patricio: ' + estado);
     }
-}
-
-function iniciarJuego(juego) {
-    if (!juegoPublisher) {
-        alert('Conecta con el robot primero.');
-        return;
-    }
-    juegoActivo = juego;
-    setGameButtonState(juego, 'juego-activo');
-    updateBubble('Patricio está iniciando ' + (juego === 'pilla_pilla' ? 'Pilla-Pilla' : 'Escondite') + '...');
-    publishJuego(juego);
-}
-
-function detenerJuego() {
-    if (juegoPublisher) {
-        const msg = new ROSLIB.Message({ data: 'stop' });
-        juegoPublisher.publish(msg);
-    }
-    juegoActivo = null;
-    setGameButtonState(null, '');
-    updateBubble('Patricio está esperando instrucciones...');
-    console.log('Juego detenido');
 }

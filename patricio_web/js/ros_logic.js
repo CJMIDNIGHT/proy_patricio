@@ -7,6 +7,7 @@
 let cmdPublisher = null;
 let statusSubscriber = null;
 let juegoActivo = null;
+let esconditeStatusSubscriber = null;
 
 const API_BASE = `http://localhost:5000`;
 
@@ -30,6 +31,16 @@ function initGameTopics(rosInstance) {
         handleGameFeedback(message.data);
     });
 
+    esconditeStatusSubscriber = new ROSLIB.Topic({
+        ros: rosInstance,
+        name: '/patricio/escondite/status',
+        messageType: 'std_msgs/msg/String'
+    });
+    esconditeStatusSubscriber.subscribe(function(message) {
+        console.log('Estado escondite:', message.data);
+        handleEsconditeFeedback(message.data);
+    });
+
     console.log('Tópicos de juego inicializados');
 }
 
@@ -41,37 +52,90 @@ async function iniciarJuego(juego) {
         return;
     }
 
-    if (juego !== 'pilla_pilla') {
-        updateBubble('⚠️ Solo Pilla-Pilla está disponible por ahora.');
-        return;
-    }
-
     juegoActivo = juego;
     setGameButtonState(juego, 'juego-activo');
-    updateBubble('Patricio está iniciando Pilla-Pilla...');
+    updateBubble('Patricio está iniciando...');
 
     try {
-        const response = await fetch(`${API_BASE}/api/juego/iniciar`, {
+        let url, body;
+
+        if (juego === 'pilla_pilla') {
+            url  = `${API_BASE}/api/juego/iniciar`;
+            body = { game_name: 'pilla_pilla' };
+
+        } else if (juego === 'escondite') {
+            const poses = obtenerPosesSeleccionadas(); // tu función que recoge los puntos del mapa
+            if (!poses || poses.length < 2) {
+                updateBubble('⚠️ Selecciona al menos 2 puntos en el mapa.');
+                setGameButtonState(null, '');
+                juegoActivo = null;
+                return;
+            }
+            url  = `${API_BASE}/api/escondite/iniciar`;
+            body = { poses };
+
+        } else {
+            updateBubble('⚠️ Juego no reconocido.');
+            juegoActivo = null;
+            return;
+        }
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ game_name: 'pilla_pilla' })
+            body: JSON.stringify(body)
         });
 
         const result = await response.json();
-        console.log('API response:', result);
+        const ok = result.started ?? result.success;  // pilla_pilla usa 'started', escondite usa 'success'
 
-        if (!result.started) {
-            updateBubble('⚠️ No se pudo iniciar el juego: ' + (result.error || 'error desconocido'));
+        if (!ok) {
+            updateBubble('⚠️ ' + (result.error || result.message || 'Error desconocido'));
             setGameButtonState(null, '');
             juegoActivo = null;
         } else {
-            // Poll status for a few seconds to catch "Corriendo"
-            pollEstado(8);
+            if (juego === 'pilla_pilla') pollEstado(8);
+            if (juego === 'escondite')   updateBubble('🔍 Patricio está buscando...');
         }
 
     } catch (err) {
         console.error('Error llamando a la API:', err);
-        updateBubble('❌ No se pudo conectar con la API del juego.');
+        updateBubble('❌ No se pudo conectar con la API.');
+        setGameButtonState(null, '');
+        juegoActivo = null;
+    }
+}
+async function iniciarEscondite(poses) {
+    if (!poses || poses.length < 2) {
+        updateBubble('⚠️ Selecciona al menos 2 puntos en el mapa.');
+        return;
+    }
+
+    juegoActivo = 'escondite';
+    setGameButtonState('escondite', 'juego-activo');
+    updateBubble('Patricio está iniciando la búsqueda...');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/escondite/iniciar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ poses })  // [{ x: 1.0, y: 2.0 }, ...]
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            updateBubble('⚠️ ' + (result.error || result.message));
+            setGameButtonState(null, '');
+            juegoActivo = null;
+        } else {
+            const t = result.target_pose?.position;
+            console.log(`Objetivo secreto: x=${t?.x}, y=${t?.y}`);
+            updateBubble('🔍 Patricio está buscando...');
+        }
+
+    } catch (err) {
+        updateBubble('❌ No se pudo conectar con la API.');
         setGameButtonState(null, '');
         juegoActivo = null;
     }
@@ -122,6 +186,12 @@ async function detenerJuego() {
         console.error('API detener error:', err);
     }
 
+    try {
+        await fetch(`${API_BASE}/api/escondite/detener`, { method: 'POST' });
+    } catch(err) {
+        console.error('Error deteniendo escondite:', err);
+    }
+
     juegoActivo = null;
     setGameButtonState(null, '');
     updateBubble('Patricio está esperando instrucciones...');
@@ -160,4 +230,24 @@ function handleGameFeedback(estado) {
     } else {
         updateBubble('🤖 Patricio: ' + estado);
     }
+}
+
+function handleEsconditeFeedback(estado) {
+    updateBubble('🔍 Patricio: ' + estado);
+
+    if (estado.includes('¡Te encontré!')) {
+        setGameButtonState(null, '');
+        juegoActivo = null;
+    } else if (estado.includes('No puedo llegar') || estado.includes('detenida')) {
+        setGameButtonState(null, '');
+        juegoActivo = null;
+    }
+}
+
+function obtenerPosesSeleccionadas() {
+    return [
+        { x: 1.0, y: 2.0 },
+        { x: -1.0, y: 1.5 },
+        { x: -1.0, y: 4.0 }
+    ];
 }

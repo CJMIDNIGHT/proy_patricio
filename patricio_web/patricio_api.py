@@ -138,6 +138,36 @@ def rosbridge_subscribe_status():
         on_close=on_close
     )
     ws.run_forever()
+    
+def rosbridge_subscribe_status_escondite():
+    global last_status  # puedes reutilizar la misma variable o crear last_status_escondite
+
+    def on_message(ws, message):
+        global last_status
+        msg = json.loads(message)
+        if msg.get('op') == 'publish':
+            with status_lock:
+                last_status = msg.get('msg', {}).get('data', last_status)
+
+    def on_open(ws):
+        payload = {
+            'op': 'subscribe',
+            'topic': '/patricio/escondite/status',   # ← tópico del escondite
+            'type': 'std_msgs/msg/String'
+        }
+        ws.send(json.dumps(payload))
+
+    def on_close(ws, *args):
+        time.sleep(3)
+        rosbridge_subscribe_status_escondite()
+
+    ws = websocket.WebSocketApp(
+        ROSBRIDGE_URL,
+        on_open=on_open,
+        on_message=on_message,
+        on_close=on_close
+    )
+    ws.run_forever()
 
 
 # ── Flask routes ──────────────────────────────────────────
@@ -183,6 +213,60 @@ def detener_juego():
 def estado_juego():
     with status_lock:
         return jsonify({'status': last_status})
+    
+
+@app.route('/api/escondite/iniciar', methods=['POST'])
+def iniciar_escondite():
+    body = request.get_json(force=True)
+    poses = body.get('poses', [])
+
+    if not poses:
+        return jsonify({'success': False, 'error': 'No se enviaron poses'}), 400
+
+    # Construir el PoseArray para el servicio
+    pose_list = [
+        {
+            'position': {'x': p['x'], 'y': p['y'], 'z': 0.0},
+            'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+        }
+        for p in poses
+    ]
+
+    result = rosbridge_call_service(
+        service='/patricio/escondite/iniciar',
+        service_type='patricio_interfaces/srv/IniciarEscondite',
+        args={
+            'command': 'START',
+            'poses': {
+                'header': {'frame_id': 'map', 'stamp': {'sec': 0, 'nanosec': 0}},
+                'poses': pose_list
+            }
+        },
+        timeout=10.0
+    )
+
+    if result['error']:
+        return jsonify({'success': False, 'error': result['error']}), 500
+
+    return jsonify({
+        'success': result['response'].get('success', False),
+        'message': result['response'].get('message', ''),
+        'target_pose': result['response'].get('target_pose', {})
+    })
+
+
+@app.route('/api/escondite/detener', methods=['POST'])
+def detener_escondite():
+    rosbridge_call_service(
+        service='/patricio/escondite/iniciar',
+        service_type='patricio_interfaces/srv/IniciarEscondite',
+        args={
+            'command': 'STOP',
+            'poses': {'header': {'frame_id': 'map', 'stamp': {'sec': 0, 'nanosec': 0}}, 'poses': []}
+        },
+        timeout=5.0
+    )
+    return jsonify({'stopped': True})
 
 
 # ── Entry point ───────────────────────────────────────────
@@ -194,12 +278,19 @@ def on_shutdown():
         msg_type='std_msgs/msg/String',
         data={'data': 'STOP'}
     )
+    rosbridge_call_service(
+        service='/patricio/escondite/iniciar',
+        service_type='patricio_interfaces/srv/IniciarEscondite',
+        args={'command': 'STOP', 'poses': {'header': {'frame_id': 'map', 'stamp': {'sec': 0, 'nanosec': 0}}, 'poses': []}}
+    )
     time.sleep(1)
 
 if __name__ == '__main__':
     # Start status subscriber in background
     sub_thread = threading.Thread(target=rosbridge_subscribe_status, daemon=True)
     sub_thread.start()
+    sub_thread_escondite = threading.Thread(target=rosbridge_subscribe_status_escondite, daemon=True)
+    sub_thread_escondite.start()
 
     print('Starting Patricio API on http://0.0.0.0:5000')
 

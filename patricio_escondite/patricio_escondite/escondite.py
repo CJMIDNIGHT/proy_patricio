@@ -130,10 +130,10 @@ class EsconditoLogic:
 
         # ── Fase 1: puntos falsos ─────────────────────────────────────────
         for i, pose in enumerate(falsas, start=1):
-            self._on_status(
-                f"Buscando en punto {i} de {len(falsas)}... "
-                f"(x={pose.position.x:.1f}, y={pose.position.y:.1f})"
-            )
+            #self._on_status(
+            #    f"Buscando en punto {i} de {len(falsas)}... "
+            #    f"(x={pose.position.x:.1f}, y={pose.position.y:.1f})"
+            #)
 
             ok = self._navegar_a(pose)
             if not ok:
@@ -142,13 +142,13 @@ class EsconditoLogic:
                     self._navigating = False
                 return
 
-            self._on_status(f"Punto {i} revisado. Aquí no hay nadie.")
+            #self._on_status(f"Punto {i} revisado. Aquí no hay nadie.")
 
         # ── Fase 2: objetivo real ─────────────────────────────────────────
-        self._on_status(
-            f"Yendo al último punto... "
-            f"(x={objetivo.position.x:.1f}, y={objetivo.position.y:.1f})"
-        )
+        #self._on_status(
+        #    f"Yendo al último punto... "
+        #    f"(x={objetivo.position.x:.1f}, y={objetivo.position.y:.1f})"
+        #)
 
         ok = self._navegar_a(objetivo)
 

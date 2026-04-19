@@ -46,6 +46,15 @@ export ROS_DOMAIN_ID=7;
 ros2 launch patricio_pilla_pilla pilla_pilla.launch.py;
 exec bash"
 
+# TERMINAL 6: Escondite node
+gnome-terminal -- bash -c "
+echo '🔍 Lanzando nodo Escondite...';
+sleep 5;
+source ~/turtlebot3_ws/install/setup.bash;
+export ROS_DOMAIN_ID=7;
+ros2 run patricio_escondite escondite_service;
+exec bash"
+
 sleep 5
 MYIP=$(ip route get 1.1.1.1 | awk '{print $7; exit}')
 xdg-open http://${MYIP}:8000/admin.html

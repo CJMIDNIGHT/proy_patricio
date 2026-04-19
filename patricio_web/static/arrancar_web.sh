@@ -64,12 +64,12 @@ exec bash"
 # TERMINAL 8: Escondite node
 gnome-terminal -- bash -c "
 echo '🔍 Lanzando nodo Escondite...';
-sleep 5;
+sleep 10;
 source ~/turtlebot3_ws/install/setup.bash;
 export ROS_DOMAIN_ID=7;
 ros2 run patricio_escondite escondite_service;
 exec bash"
 
-sleep 5
+sleep 10
 MYIP=$(ip route get 1.1.1.1 | awk '{print $7; exit}')
 xdg-open http://${MYIP}:8000/admin.html

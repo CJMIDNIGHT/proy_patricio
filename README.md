@@ -1,121 +1,194 @@
-# Patricio — Robot Educativo para Niños
+# 🤖 Patricio — Robot Educativo para Niños
 
-Proyecto de Robótica 2026
-Nombre de repositorio : patricio
-
-## Descripción
-
-Patricio es un robot educativo diseñado para niños de entre 4 y 6 años de edad. Su objetivo es fomentar el aprendizaje de habilidades y conocimientos básicos mediante la interacción lúdica, integrando inteligencia artificial para una experiencia autónoma y adaptativa.
-
-### Funcionalidades principales
-
-- Enseñanza de matemáticas básicas y el alfabeto
-- Narración de chistes y cuentos cortos
-- Participación en juegos de actividad física como "pilla pilla" y "el pollito inglés"
-- Baile y canto interactivo
-- Expresión facial mediante pantalla integrada
-- Control remoto mediante interfaz web
-- Navegación autónoma del entorno
-- Reconocimiento de voz 
-- Detección de impactos físicos
+**Proyecto de Robótica 2026**  
+Repositorio: `patricio`
 
 ---
 
-## Estructura del Repositorio
+## 📖 Descripción
 
-```
+**Patricio** es un robot educativo diseñado para niños de entre 4 y 6 años, cuyo objetivo es fomentar el aprendizaje mediante la interacción lúdica.
+
+El sistema combina:
+- 🤖 Navegación autónoma  
+- 🌐 Control remoto desde interfaz web  
+- 🧠 Juegos interactivos  
+
+---
+
+## 🎯 Funcionalidades principales
+
+- 🧮 Matemáticas básicas y alfabeto  
+- 📚 Cuentos y chistes  
+- 🎮 Juegos:
+  - Pilla-Pilla  
+  - Escondite  
+- 🌐 Control desde web  
+- 🤖 Navegación autónoma  
+
+---
+
+## 📦 Estructura del repositorio
+
 patricio/
-├── patricio/                      # Paquete principal (CMake)
-├── patricio_captacion/            # Módulo de captura sensorial y percepción
-├── patricio_my_world/                # Módulo de representación del entorno
-├── patricio_nav_punto/            # Navegación hacia puntos específicos
-└── patricio_nav_ruta/             # Planificación y seguimiento de rutas
-
-```
+├── patricio/
+├── patricio_captacion/
+├── patricio_my_world/
+├── patricio_nav_punto/
+├── patricio_pilla_pilla/
+├── patricio_escondite/
+├── patricio_interfaces/
+└── patricio_web/
 
 ---
+## 🧠 Requisitos
 
-## Dependencias
-
-- [ROS 2](https://docs.ros.org/en/rolling/index.html) (Humble o superior recomendado)
+- ROS 2 Jazzy instalado
+- Ubuntu 22.04 o superior
 - Python 3.10+
-- CMake 3.8+
-- Paquetes ROS 2 requeridos:
-  - `rclpy`
-  - `nav2`
-  - `sensor_msgs`
-  - `geometry_msgs`
 
----
+## 🔧 Dependencias
 
-## Instalación
+# ROS2 + navegación
+sudo apt install ros-jazzy-desktop
+sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup
 
-### 1. Instalar ROS 2
+# Comunicación web
+sudo apt install ros-jazzy-rosbridge-server
 
-Consulta la [guía oficial de instalación de ROS 2](https://docs.ros.org/en/humble/Installation.html) según tu sistema operativo.
+# Simulación
+sudo apt install ros-jazzy-turtlebot3*
+sudo apt install ros-jazzy-ros-gz*
 
-### 2. Clonar el repositorio
+# Python
+sudo apt install gnome-terminal  
+sudo apt install python3-websocket  
+sudo apt install python3-flask  
+sudo apt install python3-flask-cors  
 
-```bash
-git clone https://github.com/CJMIDNIGHT/patricio.git
-cd patricio
-```
+#Gestión de dependencias (rosdep)
 
-### 3. Instalar dependencias
+sudo apt install python3-rosdep
 
-```bash
-sudo apt update
+⚠️ Inicializar rosdep (solo la primera vez):
+
+sudo rosdep init
 rosdep update
-rosdep install --from-paths src --ignore-src -r -y
-```
-
-### 4. Compilar el workspace
-
-```bash
-colcon build
-source install/setup.bash
-```
 
 ---
 
-## Ejecución
+## ⚙️ Instalación
 
-### Iniciar el sistema completo
+git clone https://github.com/CJMIDNIGHT/patricio.git  
+cd patricio  
 
-```bash
+rosdep update  
+rosdep install --from-paths src --ignore-src -r -y  
+
+colcon build  
+source install/setup.bash  
+
+---
+
+## ⚡ Ejecución rápida de todo el sistema
+
+bash ~/turtlebot3_ws/src/patricio/patricio_web/static/arrancar_web.sh
+
+---
+
+## 🚀 Ejecución manual
+
+### 🌍 Simulación
 ros2 launch patricio_my_world house.launch.py
-```
 
-### Iniciar módulos de forma individual
+### 🧭 Navegación
+ros2 launch patricio_nav_punto my_navigation.launch.py
 
-```bash
-# Módulo de captura sensorial
-ros2 run patricio_captacion captacion_node
-
-# Módulo de navegación por puntos
-ros2 run patricio_nav_punto nav_punto_node
-
-# Módulo de planificación de rutas
-ros2 run patricio_nav_ruta ruta_node
-```
-
-### Interfaz web
-
-Una vez el sistema esté en ejecución, accede al panel de control desde un navegador en:
-
-```
-http://<IP_DEL_ROBOT>:8080
-```
+⚠️ En RViz usar 2D Pose Estimate
 
 ---
 
-## Autores
+## 🎮 Juegos
 
-- **Adenor Buret** — [GitHub](https://github.com/CJMIDNIGHT)
-- **Santiago Aguirre Crespo** — [GitHub](https://github.com/Saac04)
-- **Pablo Meana** — [GitHub](https://github.com/Meana13)
-- **Mari Dapcheva** — [GitHub](https://github.com/ohmarimari)
-- **César Herrero** — [GitHub](https://github.com/ElCesarEse)
-- **Juan Bautista** — [GitHub](https://github.com/jbperfon)
+### 🕹️ Pilla-Pilla
+
+Terminal 1:
+ros2 launch patricio_my_world house.launch.py
+
+Terminal 2:
+ros2 launch patricio_nav_punto my_navigation.launch.py
+
+Terminal 3:
+ros2 launch patricio_pilla_pilla pilla_pilla.launch.py
+
+Terminal 4:
+ros2 service call /start_game patricio_interfaces/srv/StartGame "{game_name: 'pilla_pilla'}"
 
 ---
+
+### 🕹️ Escondite
+
+Terminal 1:
+ros2 launch patricio_my_world house.launch.py
+
+Terminal 2:
+ros2 launch patricio_nav_punto my_tb3_navigator.launch.py
+
+Terminal 3:
+ros2 run patricio_escondite escondite_service
+
+Terminal 4:
+ros2 topic echo /patricio/escondite/status
+
+Terminal 5:
+ros2 service call /patricio/escondite/iniciar patricio_interfaces/srv/IniciarEscondite "{command: 'START', poses: {...}}"
+
+---
+
+## 🌐 Interfaz web
+
+Terminal 1:
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+
+Terminal 2:
+ros2 launch patricio_nav_punto my_tb3_navigator.launch.py
+
+Terminal 3:
+ros2 launch patricio_my_world house.launch.py
+
+Terminal 4:
+cd ~/turtlebot3_ws/src/patricio/patricio_web  
+python3 -m http.server 8000  
+
+Acceso:
+http://<IP_DEL_ROBOT>:8000/admin.html
+
+---
+
+## 🎛️ Funcionalidades web
+
+- Control del robot  
+- Inicio / parada de juegos  
+- Monitorización  
+- Login  
+
+---
+
+## 🧪 Verificación
+
+✔ Control desde la web  
+✔ Comunicación Web ↔ ROS  
+✔ Navegación autónoma  
+✔ Juegos funcionando  
+
+---
+
+## 👥 Autores
+
+Adenor Buret — https://github.com/CJMIDNIGHT  
+Santiago Aguirre Crespo — https://github.com/Saac04  
+Pablo Meana — https://github.com/Meana13  
+Mari Dapcheva — https://github.com/ohmarimari  
+César Herrero — https://github.com/ElCesarEse  
+Juan Bautista — https://github.com/jbperfon  
+

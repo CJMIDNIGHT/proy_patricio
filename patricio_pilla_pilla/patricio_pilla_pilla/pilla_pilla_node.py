@@ -1,6 +1,20 @@
 
 #!/usr/bin/env python3
 
+"""
+Nodo ROS2 para el juego "Pilla-Pilla".
+
+Este nodo gestiona la lógica completa del juego:
+- Generación de waypoints (aleatorios o en círculo)
+- Envío de objetivos de navegación
+- Control del estado del juego
+- Interacción mediante servicio ROS2 (/start_game)
+- Recepción de comandos de parada
+
+El robot se desplaza entre diferentes puntos del mapa hasta completar la ruta
+o recibir una orden de detención.
+"""
+
 import math
 import random
 import yaml
@@ -18,7 +32,22 @@ from patricio_interfaces.srv import StartGame
 
 class PillaPillaNode(Node):
 
+    """
+    Nodo principal del juego Pilla-Pilla.
+
+    Gestiona:
+    - Estado del juego
+    - Generación de rutas
+    - Navegación del robot
+    - Comunicación mediante tópicos y servicios
+    """ 
+
     def __init__(self):
+
+        """
+        Inicializa el nodo ROS2, parámetros, publishers, subscribers y servicio.
+        """
+        
         super().__init__('pilla_pilla_node')
 
         # ---------------- PARÁMETROS ----------------
@@ -69,6 +98,12 @@ class PillaPillaNode(Node):
     # ODOMETRY — track current position
     # ------------------------------------------------
     def odom_callback(self, msg):
+        """
+        Callback que actualiza la posición actual del robot.
+
+        Args:
+            msg (Odometry): Mensaje de odometría recibido.
+        """
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
         self.current_pos = (x, y)
@@ -77,6 +112,12 @@ class PillaPillaNode(Node):
     # MAPA
     # ------------------------------------------------
     def load_map(self):
+        """
+        Carga el mapa desde un archivo YAML y obtiene las celdas libres.
+
+        Convierte coordenadas de píxeles a coordenadas del mundo real
+        usando la resolución y origen del mapa.
+        """
         if self.map_yaml == '':
             self.get_logger().warn('No se indicó map_yaml.')
             return
@@ -105,6 +146,16 @@ class PillaPillaNode(Node):
     # SERVICIO
     # ------------------------------------------------
     def handle_start_game(self, request, response):
+        """
+        Maneja la petición de inicio del juego.
+
+        Args:
+            request (StartGame.Request): Petición con nombre del juego
+            response (StartGame.Response): Respuesta del servicio
+
+        Returns:
+            response: Indica si el juego se ha iniciado correctamente
+        """
         self.get_logger().info(f'Recibida petición de inicio de {request.game_name}.')
         if request.game_name != 'pilla_pilla':
             response.started = False
@@ -125,6 +176,12 @@ class PillaPillaNode(Node):
     # GAME LOOP — runs in its own thread
     # ------------------------------------------------
     def game_loop(self):
+        """
+        Bucle principal del juego.
+
+        Genera waypoints y envía objetivos al robot hasta completar la ruta
+        o recibir una orden de parada.
+        """
         self.running = True
         self.stop_requested = False
         self.publish_status('Corriendo')
@@ -182,6 +239,18 @@ class PillaPillaNode(Node):
     # WAIT FOR WAYPOINT
     # ------------------------------------------------
     def wait_for_waypoint(self, target_x, target_y, tolerance=0.8, timeout=30.0):
+        """
+        Espera hasta que el robot alcance un waypoint.
+
+        Args:
+            target_x (float): Coordenada X objetivo
+            target_y (float): Coordenada Y objetivo
+            tolerance (float): Distancia de aceptación
+            timeout (float): Tiempo máximo de espera
+
+        Returns:
+            bool: True si se alcanza el punto, False si timeout
+        """
         import time
         start = time.time()
         while not self.stop_requested:
@@ -198,6 +267,12 @@ class PillaPillaNode(Node):
     # STOP
     # ------------------------------------------------
     def cmd_callback(self, msg):
+        """
+        Callback para comandos externos (STOP / DETENER).
+
+        Args:
+            msg (String): Mensaje con el comando
+        """
         cmd = msg.data.upper()
         if cmd in ('STOP', 'DETENER'):
             self.get_logger().info('Petición de parada recibida.')
@@ -209,11 +284,23 @@ class PillaPillaNode(Node):
     # WAYPOINTS
     # ------------------------------------------------
     def generate_waypoints(self):
+        """
+        Genera waypoints según el modo seleccionado.
+
+        Returns:
+            list: Lista de PoseStamped
+        """
         if self.route_mode == 'circle':
             return self.generate_circle_waypoints()
         return self.generate_random_waypoints()
 
     def generate_random_waypoints(self):
+        """
+        Genera waypoints aleatorios dentro del mapa.
+
+        Returns:
+            list: Lista de poses
+        """
         points = []
         if len(self.free_cells) == 0:
             return points
@@ -223,6 +310,12 @@ class PillaPillaNode(Node):
         return points
 
     def generate_circle_waypoints(self):
+        """
+        Genera waypoints en forma de círculo.
+
+        Returns:
+            list: Lista de poses
+        """
         points = []
         for i in range(8):
             ang = i * 2.0 * math.pi / 8.0
@@ -232,6 +325,16 @@ class PillaPillaNode(Node):
         return points
 
     def create_pose(self, x, y):
+        """
+        Crea un mensaje PoseStamped.
+
+        Args:
+            x (float): Coordenada X
+            y (float): Coordenada Y
+
+        Returns:
+            PoseStamped: Pose generada
+        """
         pose = PoseStamped()
         pose.header.frame_id = 'map'
         pose.header.stamp = self.get_clock().now().to_msg()
@@ -245,12 +348,21 @@ class PillaPillaNode(Node):
     # STATUS
     # ------------------------------------------------
     def publish_status(self, text):
+        """
+        Publica el estado actual del juego.
+
+        Args:
+            text (str): Estado del juego
+        """
         msg = String()
         msg.data = text
         self.status_pub.publish(msg)
 
 
 def main(args=None):
+    """
+    Función principal que inicializa el nodo ROS2.
+    """
     rclpy.init(args=args)
     node = PillaPillaNode()
     try:

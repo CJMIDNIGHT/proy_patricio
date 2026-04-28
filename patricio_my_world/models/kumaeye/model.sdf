@@ -1,6 +1,7 @@
 <?xml version="1.0" ?>
 <sdf version="1.5">
   <model name="kumaeye">
+    <static>false</static>
     <link name="link">
       <inertial>
         <pose>0 -0.1 0.95 0 0 0</pose>
@@ -23,15 +24,6 @@
           </box>
         </geometry>
       </collision>
-      
-      <collision name="person">
-        <pose>0 0 0.02 0 0 1.57</pose>
-        <geometry>
-          <mesh>
-            <uri>model://kumaeye/meshes/kumaeyev2.dae</uri>
-          </mesh>
-        </geometry>
-      </collision>
 
       <visual name="visual">
         <pose>0 0 0.02 0 0 1.57</pose>
@@ -42,5 +34,14 @@
         </geometry>
       </visual>
     </link>
+    <plugin
+      filename="gz-sim-diff-drive-system"
+      name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.4</wheel_separation>
+      <wheel_radius>0.1</wheel_radius>
+      <topic>cmd_vel</topic>  
+    </plugin>
   </model>
 </sdf>

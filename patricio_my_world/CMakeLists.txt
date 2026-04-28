@@ -55,6 +55,10 @@ install(
   DIRECTORY launch worlds rviz src include models params urdf
   DESTINATION share/${PROJECT_NAME}
 )
+install(PROGRAMS
+  scripts/child_controller.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

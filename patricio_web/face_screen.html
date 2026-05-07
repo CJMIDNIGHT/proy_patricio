@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Patricio Face Screen</title>
+
+    <link rel="stylesheet" href="css/styles_face_screen.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/roslib/build/roslib.min.js"></script>
+
+</head>
+
+<body>
+
+    <div class="face-screen-container">
+
+        <!-- Glow -->
+        <div class="face-glow"></div>
+
+        <!-- Cara -->
+        <img
+            id="robot_face"
+            src="assets/faces/cara_feliz.png"
+            alt="Cara Patricio"
+            class="robot-face"
+        >
+
+        <!-- Texto emoción -->
+        <div
+            class="emotion-text"
+            id="emotion_text"
+        >
+            Patricio está feliz 😊
+        </div>
+
+        <!-- Indicador juego -->
+        <div class="game-indicator">
+
+            <img
+                id="game_icon"
+                src="assets/indicators/pilla_pilla.png"
+                class="game-icon"
+            >
+
+            <span id="game_text">
+                Esperando instrucciones
+            </span>
+
+        </div>
+
+    </div>
+
+    <script src="js/face_logic.js"></script>
+
+</body>
+
+</html>

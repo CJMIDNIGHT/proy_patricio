@@ -1,0 +1,184 @@
+body {
+
+    margin: 0;
+
+    width: 100vw;
+    height: 100vh;
+
+    overflow: hidden;
+
+    background:
+        radial-gradient(circle at center,
+        #243b72 0%,
+        #121b33 100%);
+
+    font-family: Arial, sans-serif;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+}
+
+.face-screen-container {
+
+    position: relative;
+
+    width: 100%;
+    height: 100%;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+    align-items: center;
+
+    gap: 30px;
+}
+
+/* Glow */
+
+.face-glow {
+
+    position: absolute;
+
+    width: 420px;
+    height: 420px;
+
+    border-radius: 50%;
+
+    background: rgba(255, 77, 166, 0.30);
+
+    filter: blur(70px);
+
+    animation: pulseGlow 3s infinite ease-in-out;
+}
+
+/* Cara */
+
+.robot-face {
+
+    position: relative;
+
+    width: 450px;
+    height: 450px;
+
+    object-fit: contain;
+
+    z-index: 2;
+
+    animation: floatFace 3s infinite ease-in-out;
+
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
+}
+
+/* Texto emoción */
+
+.emotion-text {
+
+    color: white;
+
+    font-size: 2rem;
+
+    font-weight: bold;
+
+    text-align: center;
+
+    z-index: 2;
+}
+
+/* Indicador */
+
+.game-indicator {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 18px;
+
+    padding: 15px 30px;
+
+    border-radius: 18px;
+
+    background: rgba(255,255,255,0.08);
+
+    color: white;
+
+    font-size: 1.5rem;
+
+    z-index: 2;
+}
+
+.game-icon {
+
+    width: 60px;
+    height: 60px;
+
+    object-fit: contain;
+}
+
+/* Animaciones */
+
+@keyframes floatFace {
+
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
+}
+
+@keyframes pulseGlow {
+
+    0% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: scale(1.12);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+}
+
+/* Tablet */
+
+@media (max-width: 1024px) {
+
+    .robot-face {
+
+        width: 320px;
+        height: 320px;
+    }
+
+    .face-glow {
+
+        width: 300px;
+        height: 300px;
+    }
+
+    .emotion-text {
+
+        font-size: 1.5rem;
+    }
+
+    .game-indicator {
+
+        font-size: 1.2rem;
+    }
+}

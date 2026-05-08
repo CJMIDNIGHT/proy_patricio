@@ -1,3 +1,15 @@
+function patricioApiBase() {
+  return `http://${window.location.hostname}:5000`;
+}
+
+const PATRICIO_USER_KEY = "patricio_usuario";
+
+function guardarSesionUsuario(usuario) {
+  try {
+    sessionStorage.setItem(PATRICIO_USER_KEY, JSON.stringify(usuario));
+  } catch (_) {}
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   // Modales
   const loginModal = document.getElementById("loginModal");
@@ -58,43 +70,82 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Login
+  // Login (API + MySQL)
   if (loginBtn) {
-    loginBtn.addEventListener("click", () => {
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
+    loginBtn.addEventListener("click", async () => {
+      const username = (document.getElementById("username")?.value || "").trim();
+      const password = document.getElementById("password")?.value || "";
       const errorMessage = document.getElementById("errorMessage");
 
-      if (username === "admin" && password === "1234") {
-        errorMessage.style.display = "none";
+      if (!username || !password) {
+        if (errorMessage) {
+          errorMessage.textContent = "Introduce usuario y contraseña.";
+          errorMessage.style.display = "block";
+        }
+        return;
+      }
+
+      loginBtn.disabled = true;
+      try {
+        const res = await fetch(`${patricioApiBase()}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            nombre_usuario: username,
+            contrasena: password,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!data.ok || !data.usuario) {
+          if (errorMessage) {
+            errorMessage.textContent =
+              data.error || "Usuario o contraseña incorrectos";
+            errorMessage.style.display = "block";
+          }
+          return;
+        }
+
+        guardarSesionUsuario(data.usuario);
+        if (errorMessage) errorMessage.style.display = "none";
+
+        const rol = data.usuario.rol;
+        let destino = "index.html";
+        if (rol === "admin") destino = "admin.html";
+        else if (rol === "educador") destino = "empleado.html";
+        else if (rol === "familia") destino = "usuario.html";
+
         alert("Inicio de sesión exitoso ✅");
-        window.location.href = "admin.html";
-      } else if (username === "educador" && password === "1234") {
-        errorMessage.style.display = "none";
-        alert("Inicio de sesión exitoso ✅");
-        window.location.href = "empleado.html";
-      } else if (
-        (username === "familia" || username === "usuario") &&
-        password === "1234"
-      ) {
-        errorMessage.style.display = "none";
-        alert("Inicio de sesión exitoso ✅");
-        window.location.href = "usuario.html";
-      } else {
-        errorMessage.textContent = "Usuario o contraseña incorrectos";
-        errorMessage.style.display = "block";
+        window.location.href = destino;
+      } catch (e) {
+        console.warn(e);
+        if (errorMessage) {
+          errorMessage.textContent =
+            "No se pudo conectar con la API (¿servidor en :5000 encendido?).";
+          errorMessage.style.display = "block";
+        }
+      } finally {
+        loginBtn.disabled = false;
       }
     });
   }
 
-  // Registro
+  // Registro (API: rol familia)
   if (registerBtn) {
-    registerBtn.addEventListener("click", () => {
-      const pass1 = document.getElementById("password1").value;
-      const pass2 = document.getElementById("password2").value;
+    registerBtn.addEventListener("click", async () => {
+      const nombre = (document.getElementById("nombre")?.value || "").trim();
+      const apellido = (document.getElementById("apellido")?.value || "").trim();
+      const correo = (document.getElementById("email")?.value || "").trim();
+      const pass1 = document.getElementById("password1")?.value || "";
+      const pass2 = document.getElementById("password2")?.value || "";
       const errorMsg = document.getElementById("registroError");
 
       const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+      if (!nombre || !apellido || !correo) {
+        errorMsg.textContent = "Nombre, apellidos y correo son obligatorios.";
+        return;
+      }
 
       if (!pass1 || !pass2) {
         errorMsg.textContent = "Por favor, rellena ambos campos de contraseña.";
@@ -111,10 +162,42 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      registerBtn.disabled = true;
       errorMsg.textContent = "";
-      alert("Registro exitoso ✅");
-      registerModal.style.display = "none";
-      loginModal.style.display = "flex";
+
+      try {
+        const res = await fetch(`${patricioApiBase()}/api/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            nombre,
+            apellido,
+            correo,
+            contrasena: pass1,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!data.ok || !data.usuario) {
+          errorMsg.textContent =
+            data.error ||
+            "No se pudo completar el registro. ¿Correo o usuario repetido?";
+          return;
+        }
+
+        guardarSesionUsuario(data.usuario);
+        alert(
+          `Registro exitoso ✅\nTu usuario de acceso es: ${data.usuario.nombre_usuario}`
+        );
+        registerModal.style.display = "none";
+        if (loginModal) loginModal.style.display = "flex";
+      } catch (e) {
+        console.warn(e);
+        errorMsg.textContent =
+          "Sin conexión con la API (¿servidor en :5000 encendido?).";
+      } finally {
+        registerBtn.disabled = false;
+      }
     });
   }
 
@@ -135,6 +218,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Redirigir a index.html al hacer clic en "Sí"
   if (confirmLogout) {
     confirmLogout.addEventListener("click", () => {
+      try {
+        sessionStorage.removeItem(PATRICIO_USER_KEY);
+      } catch (_) {}
       window.location.href = "index.html";
     });
   }

@@ -9,7 +9,38 @@ let statusSubscriber = null;
 let juegoActivo = null;
 let esconditeStatusSubscriber = null;
 
-const API_BASE = `http://localhost:5000`;
+const API_BASE = `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:5000`;
+
+const __debounceGuardadoJuego = {};
+function puedeRegistrarJuegoGuardado(nombreJuego, ventanaMs = 4500) {
+    const now = Date.now();
+    const ult = __debounceGuardadoJuego[nombreJuego];
+    if (ult && now - ult < ventanaMs) return false;
+    __debounceGuardadoJuego[nombreJuego] = now;
+    return true;
+}
+
+async function finalizarYGuardarJuegoEnApi(nombreJuego, resultado, estado, detalles) {
+    if (!nombreJuego || !puedeRegistrarJuegoGuardado(nombreJuego)) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/guardar_juego`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nombre_juego: nombreJuego,
+                resultado: resultado,
+                estado: estado,
+                detalles: detalles || {},
+            }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || !j.ok) {
+            console.warn('guardar_juego:', j.error || res.statusText);
+        }
+    } catch (e) {
+        console.warn('guardar_juego red:', e);
+    }
+}
 
 function initGameTopics(rosInstance) {
     // Publisher for stop commands
@@ -156,10 +187,12 @@ async function pollEstado(intentos) {
         // Keep polling while running
         if (data.status.toLowerCase().includes('corriendo')) {
             setTimeout(() => pollEstado(intentos), 3000);
-        } else if (data.status.toLowerCase().includes('descansando') && juegoActivo) {
-            // Game finished naturally
+        } else if (data.status.toLowerCase().includes('descansando') && juegoActivo === 'pilla_pilla') {
             setGameButtonState(null, '');
             updateBubble('✅ Patricio ha terminado el juego.');
+            finalizarYGuardarJuegoEnApi('pilla_pilla', 'completado_natural', 'finalizado_ok', {
+                estado_robot: data.status,
+            });
             juegoActivo = null;
         } else {
             setTimeout(() => pollEstado(intentos - 1), 1000);
@@ -172,6 +205,7 @@ async function pollEstado(intentos) {
 // Called when Stop button is clicked
 // Publishes directly to /patricio/pilla_pilla/cmd via rosbridge
 async function detenerJuego() {
+    const eraJuego = juegoActivo;
     // Publish directly via rosbridge
     if (cmdPublisher) {
         const msg = new ROSLIB.Message({ data: 'STOP' });
@@ -190,6 +224,12 @@ async function detenerJuego() {
         await fetch(`${API_BASE}/api/escondite/detener`, { method: 'POST' });
     } catch(err) {
         console.error('Error deteniendo escondite:', err);
+    }
+
+    if (eraJuego === 'escondite') {
+        await finalizarYGuardarJuegoEnApi('escondite', 'detenido_manual', 'abortado', { origen: 'boton_stop' });
+    } else if (eraJuego === 'pilla_pilla') {
+        await finalizarYGuardarJuegoEnApi('pilla_pilla', 'detenido_manual', 'abortado', { origen: 'boton_stop' });
     }
 
     juegoActivo = null;
@@ -237,9 +277,15 @@ function handleEsconditeFeedback(estado) {
 
     if (estado.includes('¡Te encontré!')) {
         setGameButtonState(null, '');
+        finalizarYGuardarJuegoEnApi('escondite', 'objetivo_encontrado', 'finalizado_ok', {
+            texto_estado: estado,
+        });
         juegoActivo = null;
     } else if (estado.includes('No puedo llegar') || estado.includes('detenida')) {
         setGameButtonState(null, '');
+        finalizarYGuardarJuegoEnApi('escondite', 'sin_exito_nav', 'finalizado_ok', {
+            texto_estado: estado,
+        });
         juegoActivo = null;
     }
 }

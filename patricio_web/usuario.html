@@ -56,7 +56,33 @@
         <button class="btn menu-btn boton" data-bs-toggle="modal" data-bs-target="#notificacionesModal">MIS NOTIFICACIONES</button>
         <button class="btn menu-btn boton" data-bs-toggle="modal" data-bs-target="#recetasModal">ACTIVIDADES CON PATRICIO</button>
         <button class="btn menu-btn boton" data-bs-toggle="modal" data-bs-target="#editarDatosModal">EDITAR DATOS</button>
-        <button class="btn menu-btn boton" data-bs-toggle="modal" data-bs-target="#historialModal">HISTORIAL DE SESIONES</button>
+        <button class="btn menu-btn boton" type="button" id="btnHistorialSesiones">HISTORIAL DE SESIONES</button>
+      </div>
+
+      <div class="perfil-card historico-dia-panel" id="panelHistoricoJuegos">
+        <div class="card-body">
+          <h2 class="perfil-title text-center">🎮 Juegos de hoy</h2>
+          <hr>
+          <p id="historico-dia-resumen" class="historico-resumen">&nbsp;</p>
+          <div id="historico-dia-barras" class="historico-barras" aria-label="Veces jugado por juego"></div>
+          <h3 class="historico-tabla-title">📋 Detalle de hoy</h3>
+          <div class="table-responsive">
+            <table class="receta-tabla historico-mini-tabla">
+              <thead>
+                <tr>
+                  <th>Juego</th>
+                  <th>Fin / hora</th>
+                  <th>Resultado</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="historico-dia-tabla-body">
+                <tr><td colspan="4">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p id="historico-dia-error" class="historico-error" hidden></p>
+        </div>
       </div>
     </div>
   </main>
@@ -205,29 +231,14 @@
         <thead>
           <tr>
             <th>Nº</th>
-            <th>Fecha</th>
+            <th>Hora</th>
             <th>Actividad</th>
-            <th>Resumen</th>
+            <th>Resultado</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="historial-modal-juegos-body">
           <tr>
-            <td>003</td>
-            <td>01/04/26</td>
-            <td>Juego del tesoro</td>
-            <td><a href="#" class="btn btn-primary" title="Informe PDF (demo)"><i class="bi bi-download"></i></a></td>
-          </tr>
-          <tr>
-            <td>002</td>
-            <td>15/03/26</td>
-            <td>Formas en el suelo</td>
-            <td><a href="#" class="btn btn-primary" title="Informe PDF (demo)"><i class="bi bi-download"></i></a></td>
-          </tr>
-          <tr>
-            <td>001</td>
-            <td>10/03/26</td>
-            <td>Saluda a Patricio</td>
-            <td><a href="#" class="btn btn-primary" title="Informe PDF (demo)"><i class="bi bi-download"></i></a></td>
+            <td colspan="4">Abre después de jugarse partidas desde el panel de administración. <br><small>Vista resumida (mismo día que el dashboard).</small></td>
           </tr>
         </tbody>
       </table>
@@ -239,6 +250,7 @@
 
 
   <script src="js/script_singup_login_logout.js"></script>
+  <script src="js/historico_dia_usuario.js"></script>
   <script src="js/script_usuario.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 

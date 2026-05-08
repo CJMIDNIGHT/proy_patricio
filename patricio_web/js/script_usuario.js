@@ -194,13 +194,16 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const historialButton = document.querySelector('[data-bs-target="#historialModal"]');
+  const historialButton = document.getElementById("btnHistorialSesiones");
   const comprasPopup = document.getElementById("comprasPopup");
   const cerrarHistorialButton = document.getElementById("cerrarHistorial");
 
-  if (historialButton) {
+  if (historialButton && comprasPopup) {
     historialButton.addEventListener("click", () => {
       comprasPopup.style.display = "flex";
+      if (typeof window.cargarHistoricoDiaFamilia === "function") {
+        window.cargarHistoricoDiaFamilia();
+      }
     });
   }
 

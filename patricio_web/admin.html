@@ -15,6 +15,9 @@
 
 </head>
 <body>
+  <!-- Alertas robot: visible si hay incidencias resuelta=0 y estado=abierta -->
+  <div id="incidencias-banner" class="incidencias-banner--hidden" role="alert" aria-live="assertive" aria-hidden="true"></div>
+
   <header>
     <a href="index.html">
   <img src="images/logo_patricio.png" alt="Patricio" class="logo">
@@ -165,7 +168,9 @@
     </div>
   </div>
 
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/roslib/build/roslib.min.js"></script>
+  <script src="js/admin_incidencias.js"></script>
   <script src="js/script_monitor.js"></script>
   <script src="js/script_admin.js"></script>
   <script src="js/script_singup_login_logout.js"></script>

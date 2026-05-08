@@ -14,9 +14,12 @@
 
   setNoDisponible();
 
-  // Conexión con ROSBridge
+  const rosHost = window.location.hostname || 'localhost';
+  const apiIncidencias = () => `http://${rosHost}:5000`;
+
+  // Conexión con ROSBridge (mismo host que la página admin)
   const ros = new ROSLIB.Ros({
-    url: 'ws://localhost:9090' // Cambia la IP si no está en localhost
+    url: `ws://${rosHost}:9090`
   });
 
   ros.on('connection', () => {
@@ -48,13 +51,72 @@
 
   let ultimaActualizacionBateria = 0;
   const INTERVALO_BATERIA = 3000;
+  let ultimaAlertaBateriaMs = 0;
+  const MIN_MS_ENTRE_ALERTAS_BAT = 120000;
+  const UMBRAL_BAT_FRAC = 0.2;
 
   batteryListener.subscribe(function (message) {
     const ahora = Date.now();
+    const p = message.percentage;
+    if (p != null && !isNaN(Number(p))) {
+      const frac = Number(p) <= 1 ? Number(p) : Number(p) / 100;
+      if (
+        frac < UMBRAL_BAT_FRAC &&
+        ahora - ultimaAlertaBateriaMs >= MIN_MS_ENTRE_ALERTAS_BAT
+      ) {
+        ultimaAlertaBateriaMs = ahora;
+        const pctStr = (frac * 100).toFixed(0);
+        fetch(`${apiIncidencias()}/api/incidencias`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo: 'Batería baja',
+            titulo: 'Batería baja detectada',
+            mensaje: `Nivel aproximado ${pctStr} %`,
+            severidad: 'critico',
+          }),
+        }).catch(() => {});
+      }
+    }
     if (ahora - ultimaActualizacionBateria >= INTERVALO_BATERIA) {
       ultimaActualizacionBateria = ahora;
-      const porcentaje = (message.percentage).toFixed(2);
+      const porcentaje =
+        p != null && !isNaN(Number(p))
+          ? (Number(p) <= 1 ? (Number(p) * 100).toFixed(0) : Number(p).toFixed(0))
+          : '?';
       bateriaEl.textContent = porcentaje + ' %';
+    }
+  });
+
+  // Anomalías publicadas desde el robot (JSON en data): tipo, mensaje, titulo, severidad opcional
+  const incRosListener = new ROSLIB.Topic({
+    ros: ros,
+    name: '/patricio/incidencia',
+    messageType: 'std_msgs/msg/String',
+  });
+
+  incRosListener.subscribe(function (message) {
+    try {
+      const raw = typeof message.data === 'string' ? message.data.trim() : '';
+      if (!raw) return;
+      const payload = JSON.parse(raw);
+      const tipo = (payload.tipo || payload.type || '').trim();
+      if (!tipo) return;
+      fetch(`${apiIncidencias()}/api/incidencias`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo,
+          titulo: (payload.titulo || tipo).substring(0, 200),
+          mensaje:
+            payload.mensaje ||
+            payload.message ||
+            'Sin detalle adicional',
+          severidad: payload.severidad || 'aviso',
+        }),
+      }).catch(() => {});
+    } catch (_) {
+      /* JSON inválido: ignorar */
     }
   });
 

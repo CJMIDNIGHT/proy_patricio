@@ -1,3 +1,79 @@
+/* Banner de incidencias (admin) */
+#incidencias-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-family: 'Arial', sans-serif;
+}
+
+#incidencias-banner.incidencias-banner--hidden {
+    display: none;
+}
+
+#incidencias-banner.incidencias-banner--critico {
+    background: linear-gradient(90deg, #b91c1c, #dc2626);
+    border-bottom: 3px solid #7f1d1d;
+}
+
+#incidencias-banner.incidencias-banner--aviso {
+    background: linear-gradient(90deg, #c2410c, #ea580c);
+    border-bottom: 3px solid #9a3412;
+}
+
+#incidencias-banner.incidencias-banner--info {
+    background: linear-gradient(90deg, #6b21a8, #9333ea);
+    border-bottom: 3px solid #581c87;
+}
+
+.incidencias-banner__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.incidencias-banner__meta,
+.incidencias-banner__extra {
+    display: block;
+    font-size: 0.85rem;
+    opacity: 0.95;
+    margin-top: 0.25rem;
+}
+
+.incidencias-banner__detail {
+    margin: 0.35rem 0 0;
+    font-size: 0.95rem;
+}
+
+.incidencias-banner__btn {
+    flex-shrink: 0;
+    background-color: rgba(255, 255, 255, 0.95);
+    color: #7f1d1d;
+    font-weight: bold;
+}
+
+#incidencias-banner.incidencias-banner--info .incidencias-banner__btn {
+    color: #581c87;
+}
+
+body.incidencias-banner-visible main {
+    padding-top: 120px;
+}
+
+@media (max-width: 576px) {
+    body.incidencias-banner-visible main {
+        padding-top: 160px;
+    }
+}
+
 /* General container styling */
 .container {
     margin-top: 2rem;

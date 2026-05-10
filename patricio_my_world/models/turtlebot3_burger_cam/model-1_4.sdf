@@ -326,7 +326,7 @@
       <child>wheel_left_link</child>
       <pose>0.0 0.08 0.023 -1.57 0 0</pose>
       <axis>
-        <xyz>0 0 1</xyz>
+        <xyz>0 0 -1</xyz>
       </axis>
     </joint>
 
@@ -335,7 +335,7 @@
       <child>wheel_right_link</child>
       <pose>0.0 -0.08 0.023 -1.57 0 0</pose>
       <axis>
-        <xyz>0 0 1</xyz>
+        <xyz>0 0 -1</xyz>
       </axis>
     </joint>
 
@@ -371,8 +371,8 @@
       <update_rate>30</update_rate>
 
       <!-- wheels -->
-      <left_joint>wheel_left_joint</left_joint>
-      <right_joint>wheel_right_joint</right_joint>
+      <left_joint>wheel_right_joint</left_joint>
+      <right_joint>wheel_left_joint</right_joint>
 
       <!-- kinematics -->
       <wheel_separation>0.160</wheel_separation>

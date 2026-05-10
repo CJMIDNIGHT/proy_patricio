@@ -1,10 +1,8 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
-
 #include <chrono>
 #include <memory>
-
 #include "geometry_msgs/msg/twist.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -17,21 +15,16 @@ public:
   : Node("keyboard_teleop")
   {
     cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
-
     saved_flags_ = fcntl(STDIN_FILENO, F_GETFL, 0);
     tcgetattr(STDIN_FILENO, &saved_term_);
-
     set_raw_mode();
-
     current_linear_ = 0.0;
     current_angular_ = 0.0;
     last_key_time_ = this->now();
-
     timer_ = this->create_wall_timer(
       50ms,
       std::bind(&KeyboardTeleop::timer_callback, this));
-
-    RCLCPP_INFO(this->get_logger(), "Keyboard teleop node started. Use W/A/S/D to move, X to stop, Q to quit.");
+    RCLCPP_INFO(this->get_logger(), "Keyboard teleop node started. Use W/A/S/D (or Z/Q/S/D on AZERTY) to move, X to stop, P to quit.");
   }
 
   ~KeyboardTeleop()
@@ -49,15 +42,18 @@ private:
   double current_angular_;
   rclcpp::Time last_key_time_;
 
-  static constexpr double LINEAR_STEP = 0.25;
-  static constexpr double ANGULAR_STEP = 0.8;
-  static constexpr double KEY_TIMEOUT = 0.25;
+  // Velocidad lineal ajustada al límite real del TurtleBot3 Burger (máx 0.22 m/s)
+  static constexpr double LINEAR_STEP  = 0.20;
+  // Velocidad angular más ágil para giros responsivos
+  static constexpr double ANGULAR_STEP = 2.5;
+  // Tiempo sin pulsar tecla antes de detener el robot
+  static constexpr double KEY_TIMEOUT  = 0.25;
 
   void set_raw_mode()
   {
     struct termios raw = saved_term_;
     raw.c_lflag &= ~(ECHO | ICANON);
-    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VMIN]  = 0;
     raw.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
     fcntl(STDIN_FILENO, F_SETFL, saved_flags_ | O_NONBLOCK);
@@ -84,36 +80,40 @@ private:
     switch (c) {
       case 'w':
       case 'W':
-        current_linear_ = LINEAR_STEP;
+      case 'z':
+      case 'Z':
+        current_linear_  = LINEAR_STEP;
         current_angular_ = 0.0;
         RCLCPP_INFO(this->get_logger(), "Forward");
         break;
       case 's':
       case 'S':
-        current_linear_ = -LINEAR_STEP;
+        current_linear_  = -LINEAR_STEP;
         current_angular_ = 0.0;
         RCLCPP_INFO(this->get_logger(), "Backward");
         break;
       case 'a':
       case 'A':
-        current_linear_ = 0.0;
+      case 'q':
+      case 'Q':
+        current_linear_  = 0.0;
         current_angular_ = ANGULAR_STEP;
         RCLCPP_INFO(this->get_logger(), "Turn left");
         break;
       case 'd':
       case 'D':
-        current_linear_ = 0.0;
+        current_linear_  = 0.0;
         current_angular_ = -ANGULAR_STEP;
         RCLCPP_INFO(this->get_logger(), "Turn right");
         break;
       case 'x':
       case 'X':
-        current_linear_ = 0.0;
+        current_linear_  = 0.0;
         current_angular_ = 0.0;
         RCLCPP_INFO(this->get_logger(), "Stop");
         break;
-      case 'q':
-      case 'Q':
+      case 'p':
+      case 'P':
         RCLCPP_INFO(this->get_logger(), "Quit requested");
         rclcpp::shutdown();
         break;
@@ -125,19 +125,34 @@ private:
   void publish_command(double linear, double angular)
   {
     geometry_msgs::msg::Twist twist;
-    twist.linear.x = linear;
+    twist.linear.x  = linear;
     twist.angular.z = angular;
     cmd_vel_pub_->publish(twist);
   }
 
   void timer_callback()
   {
+    bool got_key = false;
+
     while (true) {
       int c = read_key();
       if (c < 0) {
         break;
       }
       process_key(c);
+      got_key = true;
+    }
+
+    // Si se pulsó una tecla, reinicia el temporizador de timeout
+    if (got_key) {
+      last_key_time_ = this->now();
+    } else {
+      // Si lleva más de KEY_TIMEOUT segundos sin pulsar, para el robot
+      auto elapsed = (this->now() - last_key_time_).seconds();
+      if (elapsed > KEY_TIMEOUT) {
+        current_linear_  = 0.0;
+        current_angular_ = 0.0;
+      }
     }
 
     publish_command(current_linear_, current_angular_);

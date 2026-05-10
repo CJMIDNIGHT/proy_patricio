@@ -1,7 +1,7 @@
 #!/bin/bash
 export ROS_DOMAIN_ID=7
 export ROS_LOCALHOST_ONLY=0
-export TURTLEBOT3_MODEL=burger
+export TURTLEBOT3_MODEL=burger_cam
 source ~/turtlebot3_ws/install/setup.bash
 
 # TERMINAL 1: Gazebo

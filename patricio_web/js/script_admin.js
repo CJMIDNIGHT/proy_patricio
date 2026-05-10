@@ -830,7 +830,7 @@ function moveAlmacenToCasa() {
 function updateCameraFeed() {
     const img = document.getElementById("cameraFeed");
     const timestamp = new Date().getTime(); // Evitar el almacenamiento en caché
-    img.src = `http://${localIp}:8080/stream?topic=/image&timestamp=${timestamp}`;
+    img.src = `http://${localIp}:8080/stream?topic=/camera/image_raw&timestamp=${timestamp}`;
   }
   
   
@@ -842,7 +842,7 @@ document.addEventListener('DOMContentLoaded', event => {
     // 自动根据页面地址设置 IP     Establecer IP automáticamente según la dirección de la página
     document.getElementById("ipInput").value = `ws://${localIp}:9090`;
     const timestamp = new Date().getTime(); 
-    document.getElementById("cameraFeed").src = `http://${localIp}:8080/stream?topic=/image&timestamp=${timestamp}`;
+    document.getElementById("cameraFeed").src = `http://${localIp}:8080/stream?topic=/camera/image_raw&timestamp=${timestamp}`;
     
 
 

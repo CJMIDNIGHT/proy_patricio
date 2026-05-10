@@ -72,6 +72,14 @@ def generate_launch_description():
     )
 
     # -----------------------------------------------------------------------
+    # Modelo del robot
+    # Usa la variable de entorno TURTLEBOT3_MODEL para seleccionar el modelo
+    # de TurtleBot3. El modelo con cámara es 'burger_cam'.
+    # -----------------------------------------------------------------------
+    TURTLEBOT3_MODEL = os.environ.get('TURTLEBOT3_MODEL', 'burger_cam')
+    model_folder = 'turtlebot3_' + TURTLEBOT3_MODEL
+
+    # -----------------------------------------------------------------------
     # Lanzamiento de Gazebo
     # Inicia el simulador Gazebo con el mundo house.world en modo ejecución (-r)
     # y verbosidad nivel 2 (-v2). on_exit_shutdown cierra todo el sistema
@@ -137,7 +145,7 @@ def generate_launch_description():
         package='ros_gz_bridge',
         executable='parameter_bridge',
         parameters=[{
-            'config_file': os.path.join(pkg, 'params', 'turtlebot3_burger_cam_bridge.yaml'),
+            'config_file': os.path.join(pkg, 'params', model_folder + '_bridge.yaml'),
             'qos_overrides./tf_static.publisher.durability': 'transient_local',
         }],
         output='screen'

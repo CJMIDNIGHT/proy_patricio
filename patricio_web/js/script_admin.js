@@ -143,9 +143,20 @@ function navigateTo(targetX, targetY, targetOrientationW = 1.0) {
     rotateToTargetOrientation();
 }
 
+ // Función para activar el stream de la cámara (Santiago Aguirre)
+function activarCamara() {
+    const img = document.getElementById("cameraFeed");
+    if (!img) return;
+    img.src = `http://${localIp}:8080/stream?topic=/patricio/camera_processed&timestamp=${Date.now()}`;
+    console.log("📷 Stream de cámara activado:", img.src);
+}
+
 
 function connect() {
     console.log("Clic en connect");
+
+    console.log("Activando cámara...");
+    activarCamara()
 
     updateRosBridgeAddress();
 
@@ -158,7 +169,7 @@ function connect() {
         initGameTopics(data.ros);
         document.getElementById("estado").textContent = '🔌 Conectado';
         document.getElementById("estado").style.color = 'green';
-        console.log("Conexión con ROSBridge correcta");
+        console.log("Conexión con ROSBridge correcta");;
 
         // 准备地图画布  Preparación del lienzo del mapa
         const canvas = document.getElementById("mapCanvas");
@@ -180,7 +191,7 @@ function connect() {
         };
 
         // 加载 YAML 并设置图片路径 Cargar YAML y establecer la ruta de la imagen
-        fetch(`http://${localIp}:8000/static/farmaciaMapa.yaml`)
+        /*fetch(`http://${localIp}:8000/static/farmaciaMapa.yaml`)
 
             .then(res => res.text())
             .then(text => {
@@ -188,7 +199,7 @@ function connect() {
                 console.log("🟡 YAML recibido:", mapInfo);
                 image.src = `http://${localIp}:8000/static/` + mapInfo.image;
 
-            });
+            });*/
 
         // 订阅 /odom：更新位置 & 地图画图 Suscríbete a /odom: Actualizar ubicación y dibujo del mapa
         const odomTopic = new ROSLIB.Topic({
@@ -827,7 +838,7 @@ function moveAlmacenToCasa() {
 } 
 
 
-function updateCameraFeed() {
+/*function updateCameraFeed() {
     const img = document.getElementById("cameraFeed");
     const timestamp = new Date().getTime(); // Evitar el almacenamiento en caché
     img.src = `http://${localIp}:8080/stream?topic=/image&timestamp=${timestamp}`;
@@ -835,18 +846,16 @@ function updateCameraFeed() {
   
   
   // 每隔 2 秒刷新一次图像--Actualizar la imagen cada 2 segundos
-  setInterval(updateCameraFeed, 2000);
+  setInterval(updateCameraFeed, 2000);*/
 
 document.addEventListener('DOMContentLoaded', event => {
     
     // 自动根据页面地址设置 IP     Establecer IP automáticamente según la dirección de la página
     document.getElementById("ipInput").value = `ws://${localIp}:9090`;
-    const timestamp = new Date().getTime(); 
-    document.getElementById("cameraFeed").src = `http://${localIp}:8080/stream?topic=/image&timestamp=${timestamp}`;
     
-
-
-
+    /*const timestamp = new Date().getTime(); 
+    document.getElementById("cameraFeed").src = `http://${localIp}:8080/stream?topic=/image&timestamp=${timestamp}`;*/
+    
     document.getElementById("btn_goto_cola").addEventListener("click", () => {
         sendNavGoal(3.998915, 4.900286, 1.0);
     });
@@ -923,8 +932,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Crear canvas temporal
         const canvas = document.createElement("canvas");
-        canvas.width = cameraFeed.videoWidth || cameraFeed.naturalWidth;
-        canvas.height = cameraFeed.videoHeight || cameraFeed.naturalHeight;
+        canvas.width = cameraFeed.videoWidth || 640;
+        canvas.height = cameraFeed.videoHeight || 480;
 
         const ctx = canvas.getContext("2d");
         ctx.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);

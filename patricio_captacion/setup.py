@@ -30,6 +30,7 @@ setup(
         'console_scripts': [
             'vision_node = patricio_captacion.vision_node:main',
             'webcam_publisher = patricio_captacion.webcam_publisher:main',
+            'webcam_publisher_linux = patricio_captacion.webcam_publisher_linux:main',
         ],
     },
 )

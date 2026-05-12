@@ -557,7 +557,7 @@ document.addEventListener('DOMContentLoaded', event => {
     document.getElementById('btn_stop_juego').addEventListener('click',  detenerJuego);
 
     // Juego del Calamar — funciones definidas en ros_logic.js
-    document.getElementById('btn_calamar_auto').addEventListener('click', iniciarCalamarAuto);
+    document.getElementById('btn_calamar_auto').addEventListener('click', () => { iniciarCalamarAuto(); window.open('calamar_game.html', '_blank'); });
     document.getElementById('btn_luz_verde').addEventListener('click',    calamarLuzVerde);
     document.getElementById('btn_luz_roja').addEventListener('click',     calamarLuzRoja);
 

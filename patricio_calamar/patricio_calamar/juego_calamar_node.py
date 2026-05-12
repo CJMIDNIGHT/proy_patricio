@@ -2,19 +2,6 @@
 
 """
 Nodo ROS2 para el juego del Calamar — "Luz Roja, Luz Verde".
-
-Estados:
-  ESPERA      — nodo idle, esperando comando de inicio
-  LUZ_VERDE   — movimiento permitido (no se procesa cámara)
-  LUZ_ROJA    — detección activa mediante OpenCV (diferencia de frames)
-
-Tópicos:
-  Suscribe : /patricio/calamar/cmd    (std_msgs/String)
-             Comandos: START_AUTO | CAMBIAR_A_VERDE | CAMBIAR_A_ROJO | STOP
-  Publica  : /patricio/calamar/status (std_msgs/String)
-             Estados: ESPERA | LUZ_VERDE | LUZ_ROJA | INFRACCION
-           : /patricio/alerta_juego   (std_msgs/String)
-             Publica "INFRACCION" cuando se detecta movimiento en LUZ_ROJA
 """
 
 import random
@@ -23,339 +10,289 @@ import time
 
 import cv2
 import numpy as np
+from cv_bridge import CvBridge
 
 import rclpy
 from rclpy.node import Node
+from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
-
-# ── Constantes de estado ──────────────────────────────────
 ESTADO_ESPERA = 'ESPERA'
-ESTADO_VERDE = 'LUZ_VERDE'
-ESTADO_ROJO = 'LUZ_ROJA'
+ESTADO_VERDE  = 'LUZ_VERDE'
+ESTADO_ROJO   = 'LUZ_ROJA'
+
+MOTION_PERCENT_THRESHOLD = 1.5   # % of frame pixels that must change to fire
 
 
 class JuegoCalamarNode(Node):
-    """
-    Nodo principal del Juego del Calamar.
-
-    Gestiona la máquina de estados, la detección de movimiento
-    por OpenCV y la comunicación con la interfaz web vía ROS 2.
-    """
 
     def __init__(self):
-        """Inicializa el nodo, parámetros, publishers y subscribers."""
         super().__init__('juego_calamar_node')
 
-        # ── Parámetros configurables ──────────────────────
-        self.declare_parameter('motion_threshold', 3000)
-        self.declare_parameter('camera_index', 0)
-        self.declare_parameter('verde_min_sec', 2.0)
-        self.declare_parameter('verde_max_sec', 5.0)
-        self.declare_parameter('rojo_min_sec', 2.0)
-        self.declare_parameter('rojo_max_sec', 4.0)
+        self.declare_parameter('motion_threshold', 3000)   # legacy, ignored
+        self.declare_parameter('verde_min_sec', 3.0)
+        self.declare_parameter('verde_max_sec', 6.0)
+        self.declare_parameter('rojo_min_sec',  3.0)
+        self.declare_parameter('rojo_max_sec',  5.0)
 
-        self.motion_threshold = (
-            self.get_parameter('motion_threshold')
-            .get_parameter_value()
-            .integer_value
-        )
-        self.camera_index = (
-            self.get_parameter('camera_index')
-            .get_parameter_value()
-            .integer_value
-        )
-        self.verde_min = (
-            self.get_parameter('verde_min_sec')
-            .get_parameter_value()
-            .double_value
-        )
-        self.verde_max = (
-            self.get_parameter('verde_max_sec')
-            .get_parameter_value()
-            .double_value
-        )
-        self.rojo_min = (
-            self.get_parameter('rojo_min_sec')
-            .get_parameter_value()
-            .double_value
-        )
-        self.rojo_max = (
-            self.get_parameter('rojo_max_sec')
-            .get_parameter_value()
-            .double_value
-        )
+        self.verde_min = self.get_parameter('verde_min_sec').get_parameter_value().double_value
+        self.verde_max = self.get_parameter('verde_max_sec').get_parameter_value().double_value
+        self.rojo_min  = self.get_parameter('rojo_min_sec').get_parameter_value().double_value
+        self.rojo_max  = self.get_parameter('rojo_max_sec').get_parameter_value().double_value
 
-        # ── Estado interno ────────────────────────────────
-        self.estado = ESTADO_ESPERA
+        self.estado         = ESTADO_ESPERA
         self.stop_requested = False
-        self._game_thread = None
-        self._cap = None          # cv2.VideoCapture handle
-        self._state_lock = threading.Lock()
+        self._detecting     = False
+        self._game_thread   = None
+        self._state_lock    = threading.Lock()
 
-        # ── ROS publishers ────────────────────────────────
-        self.status_pub = self.create_publisher(
-            String, '/patricio/calamar/status', 10)
-        self.alerta_pub = self.create_publisher(
-            String, '/patricio/alerta_juego', 10)
+        self._bridge       = CvBridge()
+        self._latest_frame = None
+        self._frame_lock   = threading.Lock()
+        self._frame_event  = threading.Event()
 
-        # ── ROS subscriber ────────────────────────────────
-        self.cmd_sub = self.create_subscription(
-            String, '/patricio/calamar/cmd', self.cmd_callback, 10)
+        self.status_pub = self.create_publisher(String, '/patricio/calamar/status', 10)
+        self.alerta_pub = self.create_publisher(String, '/patricio/alerta_juego',   10)
+        self.cmd_sub    = self.create_subscription(
+            String, '/patricio/calamar/cmd',  self.cmd_callback,    10)
+        self.image_sub  = self.create_subscription(
+            Image,  '/camera/real',            self._image_callback, 10)
 
         self.publish_status(ESTADO_ESPERA)
         self.get_logger().info('juego_calamar_node listo.')
 
-    # ── Comando entrante ──────────────────────────────────
+    # ── Imagen ───────────────────────────────────────────
+
+    def _image_callback(self, msg):
+        try:
+            frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            with self._frame_lock:
+                self._latest_frame = frame
+            self._frame_event.set()
+        except Exception as e:
+            self.get_logger().warn(f'Error convirtiendo imagen: {e}')
+
+    def _get_frame(self, timeout=0.5):
+        """Wait for a new frame and return it. Returns None on timeout."""
+        self._frame_event.wait(timeout=timeout)
+        self._frame_event.clear()
+        with self._frame_lock:
+            return self._latest_frame.copy() if self._latest_frame is not None else None
+
+    def _flush_and_get_stable_baseline(self, n_warmup=4):
+        """
+        Discards all queued frames, then collects n_warmup fresh frames
+        and returns the last one as a stable baseline for comparison.
+
+        This must be called:
+          1. When red light first starts.
+          2. After each infraction, once the anti-spam sleep finishes.
+
+        Without this, stale frames from before the red phase (or from
+        the moment of movement) get compared against the new baseline
+        and trigger false positives in a loop.
+        """
+        # Step 1 — flush: clear the event and discard whatever is in _latest_frame
+        self._frame_event.clear()
+        with self._frame_lock:
+            self._latest_frame = None
+
+        # Step 2 — wait for n_warmup genuinely new frames from the camera
+        baseline = None
+        collected = 0
+        while collected < n_warmup:
+            if not self._detecting:   # bail out if red light was cancelled
+                return None
+            frame = self._get_frame(timeout=1.0)
+            if frame is None:
+                self.get_logger().warn('Esperando frame para baseline...')
+                continue
+            gris = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            baseline = cv2.GaussianBlur(gris, (21, 21), 0)
+            collected += 1
+
+        return baseline   # the last of the n_warmup frames is the baseline
+
+    # ── Comandos ─────────────────────────────────────────
 
     def cmd_callback(self, msg):
-        """
-        Procesa comandos recibidos desde la interfaz web.
-
-        Args:
-            msg (String): START_AUTO | CAMBIAR_A_VERDE | CAMBIAR_A_ROJO | STOP
-        """
         cmd = msg.data.strip().upper()
         self.get_logger().info(f'Comando recibido: {cmd}')
+        if   cmd == 'START_AUTO':      self._iniciar_auto()
+        elif cmd == 'CAMBIAR_A_VERDE': self._set_manual(ESTADO_VERDE)
+        elif cmd == 'CAMBIAR_A_ROJO':  self._set_manual(ESTADO_ROJO)
+        elif cmd == 'STOP':            self._detener()
 
-        if cmd == 'START_AUTO':
-            self._iniciar_auto()
-
-        elif cmd == 'CAMBIAR_A_VERDE':
-            self._set_estado_manual(ESTADO_VERDE)
-
-        elif cmd == 'CAMBIAR_A_ROJO':
-            self._set_estado_manual(ESTADO_ROJO)
-
-        elif cmd == 'STOP':
-            self._detener()
-
-    # ── Inicio modo automático ────────────────────────────
+    # ── Modo automático ───────────────────────────────────
 
     def _iniciar_auto(self):
-        """Arranca el bucle automático en un hilo separado."""
         with self._state_lock:
             if self.estado != ESTADO_ESPERA:
                 self.get_logger().warn('Juego ya en marcha, ignorando START_AUTO.')
                 return
             self.stop_requested = False
 
-        self._abrir_camara()
-        if self._cap is None:
-            self.get_logger().error('No se pudo abrir la cámara. Abortando.')
+        self.get_logger().info('Esperando frames de /camera/real...')
+        if self._get_frame(timeout=5.0) is None:
+            self.get_logger().error('No llegan frames. Comprueba webcam_publisher_linux.')
             return
 
-        self._game_thread = threading.Thread(
-            target=self._bucle_automatico, daemon=True)
+        self._game_thread = threading.Thread(target=self._bucle_auto, daemon=True)
         self._game_thread.start()
 
-    def _bucle_automatico(self):
-        """
-        Bucle principal del modo automático.
-
-        Alterna aleatoriamente entre LUZ_VERDE y LUZ_ROJA hasta
-        recibir STOP.
-        """
+    def _bucle_auto(self):
         self.get_logger().info('Modo automático iniciado.')
-
         while not self.stop_requested:
-            # ── Fase VERDE ────────────────────────────────
-            duracion_verde = random.uniform(self.verde_min, self.verde_max)
+            # ── Verde — detección OFF ─────────────────────
+            dur_verde = random.uniform(self.verde_min, self.verde_max)
+            self._detecting = False
             self._cambiar_estado(ESTADO_VERDE)
-            self.get_logger().info(
-                f'LUZ VERDE durante {duracion_verde:.1f}s')
-            self._esperar(duracion_verde)
-
+            self.get_logger().info(f'LUZ VERDE {dur_verde:.1f}s')
+            self._esperar(dur_verde)
             if self.stop_requested:
                 break
 
-            # ── Fase ROJA ─────────────────────────────────
-            duracion_roja = random.uniform(self.rojo_min, self.rojo_max)
+            # ── Rojo — detección ON ───────────────────────
+            dur_roja = random.uniform(self.rojo_min, self.rojo_max)
+            self._detecting = True
             self._cambiar_estado(ESTADO_ROJO)
-            self.get_logger().info(
-                f'LUZ ROJA durante {duracion_roja:.1f}s')
-            self._detectar_movimiento(duracion_roja)
+            self.get_logger().info(f'LUZ ROJA {dur_roja:.1f}s')
+            self._detectar_movimiento(dur_roja)
 
-        self._cerrar_camara()
+        self._detecting = False
         self._cambiar_estado(ESTADO_ESPERA)
         self.get_logger().info('Modo automático detenido.')
 
     # ── Modo manual ───────────────────────────────────────
 
-    def _set_estado_manual(self, nuevo_estado):
-        """
-        Cambia el estado en modo manual.
+    def _set_manual(self, nuevo_estado):
+        self._detecting = False
+        time.sleep(0.15)
 
-        Abre/cierra la cámara según sea necesario y lanza o detiene
-        el hilo de detección.
-
-        Args:
-            nuevo_estado (str): ESTADO_VERDE | ESTADO_ROJO
-        """
         with self._state_lock:
-            if self.estado == ESTADO_ESPERA:
-                # Primera vez que se usa manual: abrir cámara
-                self._abrir_camara()
             self.stop_requested = False
 
         self._cambiar_estado(nuevo_estado)
 
         if nuevo_estado == ESTADO_ROJO:
-            # Lanzar detección sin límite de tiempo (hasta próximo comando)
+            self._detecting = True
             self._game_thread = threading.Thread(
-                target=self._detectar_movimiento,
-                args=(None,),   # None = sin timeout, hasta STOP o cambio
-                daemon=True
-            )
+                target=self._detectar_movimiento, args=(None,), daemon=True)
             self._game_thread.start()
 
-    # ── Detección OpenCV ──────────────────────────────────
+    # ── Detección de movimiento ───────────────────────────
 
     def _detectar_movimiento(self, duracion_seg):
         """
-        Captura frames y detecta movimiento por diferencia absoluta.
+        Motion detection loop. Only runs while self._detecting is True
+        and estado == LUZ_ROJA.
 
-        Solo activo cuando el estado es LUZ_ROJA.
-        Publica INFRACCION en /patricio/alerta_juego si supera umbral.
-
-        Args:
-            duracion_seg (float | None): Segundos máximos de detección.
-                                         None = infinito (modo manual).
+        Key design:
+          - _flush_and_get_stable_baseline() is called at the START and
+            AFTER EACH INFRACTION. This prevents the loop from comparing
+            a stale/mid-movement frame against a new one and firing again
+            immediately, which was the cause of the infinite detection trap.
+          - The loop itself only does one thing per iteration: compare the
+            current frame against the last known-stable frame. If movement
+            is found, it sleeps, then rebuilds the baseline from scratch
+            before resuming comparison.
         """
-        if self._cap is None:
-            self.get_logger().error('Cámara no disponible para detección.')
+        t_inicio = time.time()
+        self.get_logger().info('Detección iniciada — construyendo baseline...')
+
+        # Build initial stable baseline
+        frame_anterior = self._flush_and_get_stable_baseline(n_warmup=4)
+        if frame_anterior is None:
+            self.get_logger().warn('Baseline cancelado, saliendo.')
             return
 
-        frame_anterior = None
-        t_inicio = time.time()
+        self.get_logger().info('Baseline listo. Detectando movimiento.')
 
-        while not self.stop_requested:
-            # Verificar estado actual
+        while self._detecting and not self.stop_requested:
             with self._state_lock:
                 if self.estado != ESTADO_ROJO:
                     break
 
-            # Verificar timeout (modo auto)
-            if duracion_seg is not None:
-                if time.time() - t_inicio >= duracion_seg:
-                    break
+            if duracion_seg is not None and (time.time() - t_inicio) >= duracion_seg:
+                break
 
-            ret, frame = self._cap.read()
-            if not ret:
-                self.get_logger().warn('No se pudo leer frame de cámara.')
-                time.sleep(0.1)
+            frame = self._get_frame(timeout=0.5)
+            if frame is None:
                 continue
 
-            # Convertir a escala de grises y difuminar
             gris = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             gris = cv2.GaussianBlur(gris, (21, 21), 0)
 
-            if frame_anterior is None:
-                frame_anterior = gris
-                continue
-
-            # Diferencia absoluta entre frames consecutivos
             diff = cv2.absdiff(frame_anterior, gris)
-            _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
-            pixeles_movimiento = int(np.sum(thresh) / 255)
+            _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+
+            total_pixeles   = thresh.shape[0] * thresh.shape[1]
+            pixeles_activos = int(np.sum(thresh) / 255)
+            porcentaje      = (pixeles_activos / total_pixeles) * 100.0
 
             self.get_logger().debug(
-                f'Píxeles en movimiento: {pixeles_movimiento} '
-                f'(umbral: {self.motion_threshold})')
+                f'Movimiento: {porcentaje:.2f}% (umbral: {MOTION_PERCENT_THRESHOLD}%)')
 
-            if pixeles_movimiento > self.motion_threshold:
-                self.get_logger().info(
-                    f'¡INFRACCIÓN detectada! Píxeles: {pixeles_movimiento}')
+            if porcentaje > MOTION_PERCENT_THRESHOLD:
+                self.get_logger().info(f'¡INFRACCIÓN! {porcentaje:.2f}% píxeles')
                 self._publicar_infraccion()
-                # Pequeña pausa para no saturar con alertas repetidas
-                time.sleep(1.0)
-                frame_anterior = None   # reset para siguiente comparación
+
+                # Anti-spam sleep — person finishes moving
+                time.sleep(2.0)
+
+                if not self._detecting:
+                    break
+
+                # Rebuild baseline from scratch AFTER movement has stopped.
+                # This is the critical fix: without this, the next comparison
+                # uses a mid-movement frame as baseline and fires again.
+                self.get_logger().info('Reconstruyendo baseline tras infracción...')
+                frame_anterior = self._flush_and_get_stable_baseline(n_warmup=4)
+                if frame_anterior is None:
+                    break
+                self.get_logger().info('Baseline reconstruido. Reanudando detección.')
                 continue
 
+            # No movement — update baseline gradually (rolling average)
+            # This handles slow lighting changes without resetting fully.
             frame_anterior = gris
-            time.sleep(0.05)    # ~20 fps de análisis
+
+        self.get_logger().info('Detección finalizada.')
 
     def _publicar_infraccion(self):
-        """Publica mensaje de infracción en ambos tópicos."""
         msg = String()
         msg.data = 'INFRACCION'
         self.alerta_pub.publish(msg)
         self.status_pub.publish(msg)
 
-    # ── Control de estado ─────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────
 
     def _cambiar_estado(self, nuevo):
-        """
-        Actualiza el estado interno y publica en el tópico de status.
-
-        Args:
-            nuevo (str): Nuevo estado
-        """
         with self._state_lock:
             self.estado = nuevo
         self.publish_status(nuevo)
         self.get_logger().info(f'Estado → {nuevo}')
 
     def _detener(self):
-        """Para el juego, cierra la cámara y vuelve a ESPERA."""
+        self._detecting     = False
         self.stop_requested = True
-        self._cerrar_camara()
         with self._state_lock:
             self.estado = ESTADO_ESPERA
         self.publish_status(ESTADO_ESPERA)
         self.get_logger().info('Juego detenido.')
 
     def _esperar(self, segundos):
-        """
-        Espera activa que respeta stop_requested.
-
-        Args:
-            segundos (float): Tiempo a esperar
-        """
         t_fin = time.time() + segundos
         while not self.stop_requested and time.time() < t_fin:
             time.sleep(0.1)
 
-    # ── Cámara ────────────────────────────────────────────
-
-    def _abrir_camara(self):
-        """Abre la captura de video si no está ya abierta."""
-        if self._cap is not None and self._cap.isOpened():
-            return
-        self._cap = cv2.VideoCapture(self.camera_index)
-        if not self._cap.isOpened():
-            self.get_logger().error(
-                f'No se pudo abrir cámara índice {self.camera_index}')
-            self._cap = None
-        else:
-            self.get_logger().info(
-                f'Cámara {self.camera_index} abierta.')
-
-    def _cerrar_camara(self):
-        """Libera la captura de video."""
-        if self._cap is not None:
-            self._cap.release()
-            self._cap = None
-            self.get_logger().info('Cámara liberada.')
-
-    # ── Publisher helper ──────────────────────────────────
-
     def publish_status(self, text):
-        """
-        Publica el estado actual en /patricio/calamar/status.
-
-        Args:
-            text (str): Texto de estado
-        """
         msg = String()
         msg.data = text
         self.status_pub.publish(msg)
 
 
-# ── Entry point ───────────────────────────────────────────
-
 def main(args=None):
-    """Función principal que inicializa el nodo ROS2."""
     rclpy.init(args=args)
     node = JuegoCalamarNode()
     try:

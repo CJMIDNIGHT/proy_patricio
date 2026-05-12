@@ -10,8 +10,7 @@ def generate_launch_description():
             name='juego_calamar_node',
             output='screen',
             parameters=[
-                {'motion_threshold': 3000},   # píxeles — ajustar al calibrar
-                {'camera_index': 0},           # 0 = webcam por defecto
+                {'motion_threshold': 2500},   # píxeles — ajustar al calibrar
                 {'verde_min_sec': 2.0},
                 {'verde_max_sec': 5.0},
                 {'rojo_min_sec': 2.0},

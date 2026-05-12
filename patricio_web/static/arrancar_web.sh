@@ -79,6 +79,16 @@ export ROS_DOMAIN_ID=7;
 ros2 launch patricio_calamar calamar.launch.py;
 exec bash"
 
+# TERMINAL 9: Vision node (procesado de cámara)
+gnome-terminal -- bash -c "
+echo '👁️ Lanzando Vision Node...';
+sleep 5;
+source ~/turtlebot3_ws/install/setup.bash;
+export ROS_DOMAIN_ID=7;
+export TURTLEBOT3_MODEL=burger_cam;
+ros2 launch patricio_captacion vision.launch.py;
+exec bash"
+
 sleep 10
 MYIP=$(ip route get 1.1.1.1 | awk '{print $7; exit}')
 xdg-open http://${MYIP}:8000/admin.html

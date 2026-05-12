@@ -13,7 +13,7 @@ class WebcamPublisher(Node):
         self.windows_ip = self.get_parameter('windows_ip').get_parameter_value().string_value
         self.url = f'http://{self.windows_ip}:8888/frame'
 
-        self.publisher = self.create_publisher(Image, '/camera/image_raw', 10)
+        self.publisher = self.create_publisher(Image, '/camera/real', 10)
         self.bridge = CvBridge()
         self.timer = self.create_timer(1/30, self.callback)
         self.get_logger().info(f'Conectando a cámara Windows en {self.url}')

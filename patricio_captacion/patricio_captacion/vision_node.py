@@ -9,104 +9,137 @@ class VisionNode(Node):
     """
     Nodo de visión unificado para el robot Patricio.
 
-    Se suscribe a un tópico de imagen configurable por parámetro,
-    aplica un filtro OpenCV sobre cada frame y publica el resultado
-    en /patricio/camera_processed para que web_video_server lo sirva
-    como stream MJPEG al panel de administración.
+    Prioridad de fuente:
+      1. /camera/real      → webcam del portátil (robot real simulado)
+      2. /camera/image_raw → cámara de Gazebo (fallback automático)
+
+    Si /camera/real deja de publicar durante TIMEOUT segundos,
+    el nodo cambia automáticamente a /camera/image_raw.
+    Cuando /camera/real vuelve, recupera la prioridad.
     """
+
+    TIMEOUT = 3.0
 
     def __init__(self):
         super().__init__('vision_node')
 
-        # ── 1. PARÁMETRO DE TÓPICO ──────────────────────────────────────
-        # Permite cambiar la fuente de imagen sin tocar el código.
-        # - Robot real:  /camera/image_raw  (valor por defecto)
-        # - Gazebo:      se sobreescribe desde el launch file
-        self.declare_parameter('image_topic', '/camera/image_raw')
-        image_topic = (
-            self.get_parameter('image_topic')
-            .get_parameter_value()
-            .string_value
-        )
-
-        # ── 2. PUENTE ROS2 ↔ OPENCV ────────────────────────────────────
-        # CvBridge traduce sensor_msgs/Image (bytes ROS2) a numpy array
-        # (formato que entiende OpenCV) y viceversa.
-        # Se instancia una sola vez para reutilizarla en cada callback.
         self.bridge = CvBridge()
 
-        # ── 3. SUBSCRIBER ───────────────────────────────────────────────
-        # Escucha el tópico resuelto desde el parámetro.
-        # El callback se ejecuta automáticamente cada vez que llega un frame.
-        # QoS = 10: cola de hasta 10 mensajes antes de descartar los más viejos.
-        self.subscription = self.create_subscription(
-            Image,
-            image_topic,
-            self.image_callback,
-            10
-        )
+        # ── ESTADO INTERNO ───────────────────────────────────────────────
+        self.using_real   = False
+        self.last_real_ts = 0.0
 
-        # ── 4. PUBLISHER ────────────────────────────────────────────────
-        # Publica la imagen procesada en el tópico fijo de salida.
-        # web_video_server se configura para leer exactamente este tópico.
+        # ── PUBLISHER ────────────────────────────────────────────────────
         self.publisher = self.create_publisher(
             Image,
             '/patricio/camera_processed',
             10
         )
 
-        self.get_logger().info(
-            f'VisionNode arrancado. Escuchando: {image_topic}'
+        # ── SUBSCRIBER PRIORITARIO: webcam real ──────────────────────────
+        # Publica el webcam_publisher cuando la cámara del portátil está activa.
+        # Si llega un frame aquí, siempre tiene preferencia sobre Gazebo.
+        self.sub_real = self.create_subscription(
+            Image,
+            '/camera/real',
+            self.callback_real,
+            10
         )
 
-    # ── CALLBACK ────────────────────────────────────────────────────────
-    def image_callback(self, msg: Image):
-        """
-        Se ejecuta una vez por cada frame recibido.
+        # ── SUBSCRIBER FALLBACK: Gazebo / robot real ─────────────────────
+        # Se usa cuando /camera/real no ha publicado en los últimos TIMEOUT segundos.
+        self.sub_gazebo = self.create_subscription(
+            Image,
+            '/camera/image_raw',
+            self.callback_gazebo,
+            10
+        )
 
-        Flujo:
-          sensor_msgs/Image  →  cv2.Mat (numpy)  →  filtro  →  sensor_msgs/Image  →  publish
-        """
+        # ── TIMER DE WATCHDOG ────────────────────────────────────────────
+        # Comprueba cada segundo si /camera/real sigue activo.
+        self.watchdog = self.create_timer(1.0, self.check_source)
 
-        # Paso A: convertir mensaje ROS2 → array NumPy en formato BGR
-        # 'bgr8' = 8 bits por canal, orden Blue-Green-Red (estándar OpenCV)
-        # desired_encoding='bgr8' fuerza la conversión aunque la cámara
-        # envíe otro encoding (ej: rgb8, mono8, yuv422).
+        self.get_logger().info(
+            'VisionNode arrancado.\n'
+            f'  Fuente prioritaria : /camera/real\n'
+            f'  Fuente fallback     : /camera/image_raw\n'
+            f'  Timeout fallback    : {self.TIMEOUT}s'
+        )
+
+    # ── CALLBACK WEBCAM REAL ─────────────────────────────────────────────
+    def callback_real(self, msg: Image):
+        """
+        Se ejecuta cuando llega un frame de /camera/real (webcam portátil).
+        Siempre procesa y publica — tiene prioridad absoluta.
+        """
+        self.last_real_ts = self.get_clock().now().nanoseconds / 1e9
+
+        if not self.using_real:
+            self.using_real = True
+            self.get_logger().info('📷 Fuente activa: webcam real (/camera/real)')
+
+        self._process_and_publish(msg)
+
+    # ── CALLBACK GAZEBO / FALLBACK ───────────────────────────────────────
+    def callback_gazebo(self, msg: Image):
+        """
+        Se ejecuta cuando llega un frame de /camera/image_raw (Gazebo o robot real).
+        Solo procesa si /camera/real no está activo (using_real = False).
+        """
+        if self.using_real:
+            return
+
+        self._process_and_publish(msg)
+
+    # ── WATCHDOG ─────────────────────────────────────────────────────────
+    def check_source(self):
+        """
+        Se ejecuta cada segundo. Si han pasado más de TIMEOUT segundos
+        sin frames reales, desactiva la prioridad y deja pasar Gazebo.
+        """
+        if not self.using_real:
+            return
+
+        now = self.get_clock().now().nanoseconds / 1e9
+        elapsed = now - self.last_real_ts
+
+        if elapsed > self.TIMEOUT:
+            self.using_real = False
+            self.get_logger().warn(
+                f'⚠️  /camera/real sin frames durante {elapsed:.1f}s. '
+                'Cambiando a fallback: /camera/image_raw'
+            )
+
+    # ── PROCESADO COMÚN ──────────────────────────────────────────────────
+    def _process_and_publish(self, msg: Image):
+        """
+        Convierte, filtra y publica un frame independientemente de su origen.
+        """
         try:
             frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
             self.get_logger().error(f'CvBridge error al recibir imagen: {e}')
             return
 
-        # Paso B: aplicar filtro OpenCV
-        # GaussianBlur suaviza la imagen difuminando el ruido.
-        # Kernel (15, 15): tamaño de la máscara en píxeles (debe ser impar).
-        # sigmaX = 0: OpenCV calcula la desviación estándar automáticamente.
-        # Efecto visible en la web: imagen claramente desenfocada vs original.
         processed = cv2.GaussianBlur(frame, (3, 3), 0)
 
-        # Paso C: convertir array NumPy → mensaje ROS2
         try:
             out_msg = self.bridge.cv2_to_imgmsg(processed, encoding='bgr8')
         except Exception as e:
             self.get_logger().error(f'CvBridge error al publicar imagen: {e}')
             return
 
-        # Paso D: copiar la cabecera original (timestamp + frame_id)
-        # Esto preserva la sincronización temporal con otros sensores del robot.
         out_msg.header = msg.header
-
-        # Paso E: publicar en /patricio/camera_processed
         self.publisher.publish(out_msg)
 
 
-# ── PUNTO DE ENTRADA ────────────────────────────────────────────────────
+# ── PUNTO DE ENTRADA ─────────────────────────────────────────────────────
 def main(args=None):
-    rclpy.init(args=args)          # Arranca el sistema ROS2
-    node = VisionNode()            # Crea el nodo (ejecuta __init__)
-    rclpy.spin(node)               # Bucle: procesa callbacks hasta Ctrl+C
-    node.destroy_node()            # Limpia recursos del nodo
-    rclpy.shutdown()               # Apaga el sistema ROS2
+    rclpy.init(args=args)
+    node = VisionNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == '__main__':

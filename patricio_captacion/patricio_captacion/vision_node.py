@@ -83,7 +83,7 @@ class VisionNode(Node):
         # Kernel (15, 15): tamaño de la máscara en píxeles (debe ser impar).
         # sigmaX = 0: OpenCV calcula la desviación estándar automáticamente.
         # Efecto visible en la web: imagen claramente desenfocada vs original.
-        processed = cv2.GaussianBlur(frame, (15, 15), 0)
+        processed = cv2.GaussianBlur(frame, (3, 3), 0)
 
         # Paso C: convertir array NumPy → mensaje ROS2
         try:

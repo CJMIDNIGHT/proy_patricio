@@ -224,7 +224,7 @@ function connect() {
     data.ros.on("connection", () => {
         data.connected = true;
         cmdVelTopic = null;
-        initGameTopics(data.ros);
+        initGameTopics(data.ros);  // defined in ros_logic.js — also inits calamar topics
         document.getElementById("estado").textContent = '🔌 Conectado';
         document.getElementById("estado").style.color = 'green';
         console.log("Conexión con ROSBridge correcta");
@@ -502,16 +502,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("btn_stop").addEventListener("click", stop);
     document.getElementById("btn_reverse").addEventListener("click", reverse);
 
-    // WASD — mousedown/mouseup para movimiento continuo mientras se mantiene pulsado
+    // WASD
     bindMoveButton("btn_wsad_delante",   LINEAR_SPEED,  0.0);
     bindMoveButton("btn_wsad_atras",    -LINEAR_SPEED,  0.0);
     bindMoveButton("btn_wsad_izquierda", 0.0,           ANGULAR_SPEED);
     bindMoveButton("btn_wsad_derecha",   0.0,          -ANGULAR_SPEED);
 
-    // Parada crítica
     document.getElementById("btn_wsad_parar").addEventListener("click", stop);
 
-    // Spin — rotación pura sobre el eje
+    // Spin
     bindMoveButton("btn_spin_left",  0.0,  SPIN_SPEED);
     bindMoveButton("btn_spin_right", 0.0, -SPIN_SPEED);
 
@@ -521,10 +520,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("btn_goto_almacen").addEventListener("click", () => sendNavGoal(0.009239, -15.876596, 1.0));
     document.getElementById("btn_cancelar_nav").addEventListener("click", cancelNavigation);
 
-    // Juegos
+    // Juegos — pilla_pilla y escondite (ros_logic.js)
     document.getElementById('btn_pilla_pilla').addEventListener('click', () => iniciarJuego('pilla_pilla'));
     document.getElementById('btn_escondite').addEventListener('click',   () => iniciarJuego('escondite'));
     document.getElementById('btn_stop_juego').addEventListener('click',  detenerJuego);
+
+    // Juego del Calamar — funciones definidas en ros_logic.js
+    document.getElementById('btn_calamar_auto').addEventListener('click', iniciarCalamarAuto);
+    document.getElementById('btn_luz_verde').addEventListener('click',    calamarLuzVerde);
+    document.getElementById('btn_luz_roja').addEventListener('click',     calamarLuzRoja);
+
+    // Mostrar controles manuales del calamar al conectar
+    const calamarControls = document.getElementById('calamar_manual_controls');
+    if (calamarControls) calamarControls.style.display = 'none';
 
     console.log("Página admin cargada");
 });

@@ -41,6 +41,8 @@ function initGameTopics(rosInstance) {
         handleEsconditeFeedback(message.data);
     });
 
+    initCalamarTopics(rosInstance);
+
     console.log('Tópicos de juego inicializados');
 }
 
@@ -64,7 +66,7 @@ async function iniciarJuego(juego) {
             body = { game_name: 'pilla_pilla' };
 
         } else if (juego === 'escondite') {
-            const poses = obtenerPosesSeleccionadas(); // tu función que recoge los puntos del mapa
+            const poses = obtenerPosesSeleccionadas();
             if (!poses || poses.length < 2) {
                 updateBubble('⚠️ Selecciona al menos 2 puntos en el mapa.');
                 setGameButtonState(null, '');
@@ -87,7 +89,7 @@ async function iniciarJuego(juego) {
         });
 
         const result = await response.json();
-        const ok = result.started ?? result.success;  // pilla_pilla usa 'started', escondite usa 'success'
+        const ok = result.started ?? result.success;
 
         if (!ok) {
             updateBubble('⚠️ ' + (result.error || result.message || 'Error desconocido'));
@@ -105,6 +107,7 @@ async function iniciarJuego(juego) {
         juegoActivo = null;
     }
 }
+
 async function iniciarEscondite(poses) {
     if (!poses || poses.length < 2) {
         updateBubble('⚠️ Selecciona al menos 2 puntos en el mapa.');
@@ -119,7 +122,7 @@ async function iniciarEscondite(poses) {
         const response = await fetch(`${API_BASE}/api/escondite/iniciar`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ poses })  // [{ x: 1.0, y: 2.0 }, ...]
+            body: JSON.stringify({ poses })
         });
 
         const result = await response.json();
@@ -142,7 +145,7 @@ async function iniciarEscondite(poses) {
 }
 
 //-----------------------------------------
-//pollEstado()
+// pollEstado()
 //-----------------------------------------
 async function pollEstado(intentos) {
     if (intentos <= 0) return;
@@ -153,11 +156,9 @@ async function pollEstado(intentos) {
         console.log('Poll estado:', data.status);
         handleGameFeedback(data.status);
 
-        // Keep polling while running
         if (data.status.toLowerCase().includes('corriendo')) {
             setTimeout(() => pollEstado(intentos), 3000);
         } else if (data.status.toLowerCase().includes('descansando') && juegoActivo) {
-            // Game finished naturally
             setGameButtonState(null, '');
             updateBubble('✅ Patricio ha terminado el juego.');
             juegoActivo = null;
@@ -170,16 +171,18 @@ async function pollEstado(intentos) {
 }
 
 // Called when Stop button is clicked
-// Publishes directly to /patricio/pilla_pilla/cmd via rosbridge
 async function detenerJuego() {
-    // Publish directly via rosbridge
+    // Stop calamar first (handles its own polling + STOP command)
+    detenerCalamar();
+
+    // Stop pilla_pilla via rosbridge
     if (cmdPublisher) {
         const msg = new ROSLIB.Message({ data: 'STOP' });
         cmdPublisher.publish(msg);
         console.log('Publicado STOP en /patricio/pilla_pilla/cmd');
     }
 
-    // Also call API stop as backup
+    // API stop as backup
     try {
         await fetch(`${API_BASE}/api/juego/detener`, { method: 'POST' });
     } catch(err) {
@@ -203,15 +206,21 @@ function updateBubble(texto) {
 }
 
 function setGameButtonState(juego, estado) {
-    const btnPilla = document.getElementById('btn_pilla_pilla');
+    const btnPilla    = document.getElementById('btn_pilla_pilla');
     const btnEscondite = document.getElementById('btn_escondite');
-    if (btnPilla) btnPilla.className = 'boton game-btn';
+    const btnCalamar  = document.getElementById('btn_calamar_auto');
+    if (btnPilla)     btnPilla.className     = 'boton game-btn';
     if (btnEscondite) btnEscondite.className = 'boton game-btn';
+    if (btnCalamar)   btnCalamar.className   = 'boton game-btn';
 
     if (!juego) return;
 
-    const btnId = juego === 'pilla_pilla' ? 'btn_pilla_pilla' : 'btn_escondite';
-    const btn = document.getElementById(btnId);
+    const map = {
+        pilla_pilla:  'btn_pilla_pilla',
+        escondite:    'btn_escondite',
+        calamar:      'btn_calamar_auto'
+    };
+    const btn = document.getElementById(map[juego]);
     if (btn) btn.classList.add(estado);
 }
 
@@ -220,7 +229,6 @@ function handleGameFeedback(estado) {
 
     if (lower.includes('corriendo')) {
         setGameButtonState('pilla_pilla', 'juego-activo');
-        // Show actual status from node instead of hardcoded text
         updateBubble('🏃 Patricio: ' + estado);
         juegoActivo = 'pilla_pilla';
     } else if (lower.includes('descansando')) {
@@ -246,8 +254,196 @@ function handleEsconditeFeedback(estado) {
 
 function obtenerPosesSeleccionadas() {
     return [
-        { x: -1.5, y: 5.5},
-        { x: 5.5, y: 2.0 },
-        { x: 4.0, y: 4.0 }
+        { x: -1.5, y: 5.5 },
+        { x: 5.5,  y: 2.0 },
+        { x: 4.0,  y: 4.0 }
     ];
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// JUEGO DEL CALAMAR — Luz Roja, Luz Verde
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let calamarActivo = false;
+let calamarPollInterval = null;
+let calamarStatusSubscriber = null;
+let calamarAlertaSubscriber = null;
+
+/**
+ * Inicializa los suscriptores ROS para el juego del calamar.
+ * Llamado desde initGameTopics() tras establecer la conexión ROS.
+ */
+function initCalamarTopics(rosInstance) {
+    calamarStatusSubscriber = new ROSLIB.Topic({
+        ros: rosInstance,
+        name: '/patricio/calamar/status',
+        messageType: 'std_msgs/msg/String'
+    });
+    calamarStatusSubscriber.subscribe(function (message) {
+        handleCalamarStatus(message.data);
+    });
+
+    calamarAlertaSubscriber = new ROSLIB.Topic({
+        ros: rosInstance,
+        name: '/patricio/alerta_juego',
+        messageType: 'std_msgs/msg/String'
+    });
+    calamarAlertaSubscriber.subscribe(function (message) {
+        if (message.data === 'INFRACCION') {
+            mostrarInfraccion();
+        }
+    });
+
+    console.log('Tópicos del Calamar inicializados');
+}
+
+// ── Envío de comandos ─────────────────────────────────────────────────────────
+
+async function enviarComandoCalamar(comando) {
+    try {
+        const res = await fetch(`${API_BASE}/api/calamar/comando`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comando })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            console.error('Error enviando comando calamar:', data.error);
+            updateBubble('❌ Error: ' + data.error);
+        }
+    } catch (err) {
+        console.error('Error conectando con API calamar:', err);
+        updateBubble('❌ No se pudo conectar con la API.');
+    }
+}
+
+// ── Handlers de botones ───────────────────────────────────────────────────────
+
+/** Botón Modo Automático */
+async function iniciarCalamarAuto() {
+    calamarActivo = true;
+    resetCalamarUI();
+    setGameButtonState('calamar', 'juego-activo');
+    updateBubble('🦑 Iniciando modo automático...');
+
+    // Mostrar controles manuales
+    const controls = document.getElementById('calamar_manual_controls');
+    if (controls) controls.style.display = 'flex';
+
+    await enviarComandoCalamar('START_AUTO');
+    iniciarPollCalamar();
+}
+
+/** Botón Luz Verde (manual) */
+async function calamarLuzVerde() {
+    calamarActivo = true;
+    resetCalamarUI();
+    updateBubble('🟢 Luz Verde — ¡Puedes moverte!');
+    document.getElementById('juego_bubble').style.backgroundColor = 'rgba(46,125,50,0.35)';
+    await enviarComandoCalamar('CAMBIAR_A_VERDE');
+}
+
+/** Botón Luz Roja (manual) */
+async function calamarLuzRoja() {
+    calamarActivo = true;
+    updateBubble('🔴 Luz Roja — ¡No te muevas!');
+    document.getElementById('juego_bubble').style.backgroundColor = 'rgba(198,40,40,0.35)';
+    await enviarComandoCalamar('CAMBIAR_A_ROJO');
+}
+
+/** Para cualquier modo — también llamado desde detenerJuego() */
+async function detenerCalamar() {
+    calamarActivo = false;
+    detenerPollCalamar();
+
+    await enviarComandoCalamar('STOP').catch(() => {});
+
+    // Ocultar controles manuales
+    const controls = document.getElementById('calamar_manual_controls');
+    if (controls) controls.style.display = 'none';
+
+    resetCalamarUI();
+    console.log('🦑 Juego del Calamar detenido');
+}
+
+// ── Feedback de estado ────────────────────────────────────────────────────────
+
+function handleCalamarStatus(estado) {
+    const bubble = document.getElementById('juego_bubble');
+    if (!bubble) return;
+
+    // Limpiar clases y estilos anteriores
+    bubble.classList.remove('calamar-verde', 'calamar-roja', 'calamar-infraccion');
+    bubble.style.backgroundColor = '';
+    bubble.style.animation = '';
+
+    switch (estado) {
+        case 'LUZ_VERDE':
+            bubble.classList.add('calamar-verde');
+            updateBubble('🟢 ¡Luz Verde! Puedes moverte');
+            break;
+        case 'LUZ_ROJA':
+            bubble.classList.add('calamar-roja');
+            updateBubble('🔴 ¡Luz Roja! No te muevas');
+            break;
+        case 'INFRACCION':
+            mostrarInfraccion();
+            break;
+        case 'ESPERA':
+            updateBubble('🦑 Juego del Calamar — esperando...');
+            break;
+        default:
+            updateBubble('🤖 ' + estado);
+    }
+}
+
+/** Fondo rojo parpadeante al detectar movimiento. */
+function mostrarInfraccion() {
+    const bubble = document.getElementById('juego_bubble');
+    if (!bubble) return;
+
+    bubble.classList.remove('calamar-verde', 'calamar-roja');
+    bubble.classList.add('calamar-infraccion');
+    updateBubble('🚨 ¡TE HAS MOVIDO!');
+
+    // Quitar parpadeo después de 3 segundos si el juego sigue activo
+    setTimeout(() => {
+        if (calamarActivo) {
+            bubble.classList.remove('calamar-infraccion');
+        }
+    }, 3000);
+}
+
+/** Restablece la burbuja a estado neutral. */
+function resetCalamarUI() {
+    const bubble = document.getElementById('juego_bubble');
+    if (!bubble) return;
+    bubble.classList.remove('calamar-verde', 'calamar-roja', 'calamar-infraccion');
+    bubble.style.animation = '';
+    bubble.style.backgroundColor = '';
+}
+
+// ── Polling de estado via API ─────────────────────────────────────────────────
+
+function iniciarPollCalamar() {
+    detenerPollCalamar();
+    calamarPollInterval = setInterval(async () => {
+        if (!calamarActivo) { detenerPollCalamar(); return; }
+        try {
+            const res  = await fetch(`${API_BASE}/api/calamar/estado`);
+            const data = await res.json();
+            handleCalamarStatus(data.status);
+            if (data.alerta === 'INFRACCION') mostrarInfraccion();
+        } catch (err) {
+            console.error('Poll calamar error:', err);
+        }
+    }, 500);
+}
+
+function detenerPollCalamar() {
+    if (calamarPollInterval) {
+        clearInterval(calamarPollInterval);
+        calamarPollInterval = null;
+    }
 }

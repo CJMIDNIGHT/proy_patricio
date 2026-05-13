@@ -1,0 +1,152 @@
+/* ============================================================
+   styles_registro.css — Página de Registro de Patricio
+   ============================================================ */
+
+/* ── Layout principal ── */
+.registro-main {
+  min-height: calc(100vh - 120px); /* espacio para header y footer */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+/* ── Tarjeta del formulario ── */
+.registro-card {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 560px;
+  text-align: center;
+}
+
+.registro-card h1 {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+  color: var(--color-primary, #333);
+}
+
+.registro-subtitle {
+  font-size: 0.95rem;
+  color: #888;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Grid del formulario ── */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  text-align: left;
+  margin-bottom: 1.25rem;
+}
+
+.form-grid label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  color: #555;
+}
+
+.form-grid input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.form-grid input:focus {
+  outline: none;
+  border-color: var(--color-primary, #5b9bd5);
+}
+
+/* Campos que ocupan el ancho completo */
+.form-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+/* ── Requisitos de contraseña ── */
+.password-requirements {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  justify-content: center;
+}
+
+.password-requirements li {
+  font-size: 0.8rem;
+  color: #777;
+}
+
+/* ── Mensaje de error ── */
+.error-message {
+  color: #e74c3c;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+  margin-bottom: 0.5rem;
+}
+
+/* ── Botón principal ── */
+#registerBtn {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--color-primary, #5b9bd5);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  margin-bottom: 1rem;
+}
+
+#registerBtn:hover {
+  background: var(--color-primary-dark, #3d7fbf);
+  transform: translateY(-1px);
+}
+
+#registerBtn:active {
+  transform: translateY(0);
+}
+
+/* ── Enlace a login ── */
+.login-text {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+.login-text a {
+  color: var(--color-primary, #5b9bd5);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login-text a:hover {
+  text-decoration: underline;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid .full-width {
+    grid-column: 1;
+  }
+
+  .registro-card {
+    padding: 1.75rem 1.25rem;
+  }
+}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Registro en Patricio: robot educativo para niños y niñas de 4 a 6 años.">
+  <title>Patricio | Registro</title>
+  <link rel="stylesheet" href="css/styles_generales.css">
+  <link rel="stylesheet" href="css/styles_registro.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" href="images/logo_patricio.png" type="image/png">
+</head>
+<body>
+  <header>
+    <a href="index.html">
+      <img src="images/logo_patricio.png" alt="Patricio" class="logo">
+    </a>
+    <div class="user-icon" id="userIcon">
+      <i class="bi bi-person-circle"></i>
+    </div>
+  </header>
+
+  <main class="registro-main">
+    <div class="registro-card">
+      <h1>Registrarse</h1>
+      <p class="registro-subtitle">Crea tu cuenta para acceder a Patricio</p>
+
+      <div class="form-grid">
+        <div class="nombre">
+          <label for="nombre">Nombre</label>
+          <input type="text" id="nombre" placeholder="Nombre (tutor o centro)*">
+        </div>
+
+        <div class="apellido">
+          <label for="apellido">Apellido</label>
+          <input type="text" id="apellido" placeholder="Apellido*">
+        </div>
+
+        <div class="email full-width">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="Email*">
+        </div>
+
+        <div class="sip">
+          <label for="codigo_aula">Código de grupo o aula</label>
+          <input type="text" id="codigo_aula" placeholder="Ej. AULA-AZUL-01*">
+        </div>
+
+        <div class="telefono">
+          <label for="telefono">Teléfono</label>
+          <input type="tel" id="telefono" placeholder="Teléfono (opcional)">
+        </div>
+
+        <div class="password1">
+          <label for="password1">Contraseña</label>
+          <input type="password" id="password1" placeholder="Contraseña*">
+        </div>
+
+        <div class="password2">
+          <label for="password2">Repite la contraseña</label>
+          <input type="password" id="password2" placeholder="Repite la contraseña*">
+        </div>
+      </div>
+
+      <ul class="password-requirements">
+        <li>➤ Mínimo 8 caracteres</li>
+        <li>➤ Una letra mayúscula</li>
+        <li>➤ Una letra minúscula</li>
+        <li>➤ Un número</li>
+      </ul>
+
+      <p id="registroError" class="error-message"></p>
+
+      <button id="registerBtn">Enviar</button>
+
+      <p class="login-text">¿Ya tienes cuenta? <a href="login.html">Iniciar sesión</a></p>
+    </div>
+  </main>
+
+  <footer>
+    <a href="politica_privacidad.html">POLÍTICA PRIVACIDAD</a>
+    <span>Patricio 2026 ®</span>
+    <a href="contacto.html" class="contact-link">CONTACTO</a>
+  </footer>
+
+  <script src="js/script_singup_login_logout.js"></script>
+</body>
+</html>

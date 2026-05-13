@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Iniciar sesión en Patricio: robot educativo para niños y niñas de 4 a 6 años.">
+  <title>Patricio | Iniciar sesión</title>
+  <link rel="stylesheet" href="css/styles_generales.css">
+  <link rel="stylesheet" href="css/styles_login_page.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" href="images/logo_patricio.png" type="image/png">
+</head>
+<body>
+  <header>
+    <a href="index.html">
+      <img src="images/logo_patricio.png" alt="Patricio" class="logo">
+    </a>
+    <div class="user-icon" id="userIcon">
+      <i class="bi bi-person-circle"></i>
+    </div>
+  </header>
+
+  <main class="login-main">
+    <div class="login-card">
+      <h1>Iniciar sesión</h1>
+      <img src="images/robot_login.png" alt="Patricio" class="robot-login-img">
+
+      <label for="username">Usuario</label>
+      <input type="text" id="username" placeholder="Usuario (ej. admin) o correo electrónico">
+
+      <label for="password">Contraseña</label>
+      <input type="password" id="password" placeholder="Contraseña">
+
+      <p id="errorMessage" class="error-message"></p>
+
+      <button id="loginBtn">Entrar</button>
+
+      <p class="register-text">¿No tienes cuenta? <a href="registro.html">Regístrate</a></p>
+    </div>
+  </main>
+
+  <footer>
+    <a href="politica_privacidad.html">POLÍTICA PRIVACIDAD</a>
+    <span>Patricio 2026 ®</span>
+    <a href="contacto.html" class="contact-link">CONTACTO</a>
+  </footer>
+
+  <script src="js/script_singup_login_logout.js"></script>
+</body>
+</html>

@@ -1,119 +1,120 @@
-/* Modal Login */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    justify-content: center;
-    align-items: center;
+/* ============================================================
+   styles_login_page.css — Página de Login de Patricio
+   ============================================================ */
+
+/* ── Layout principal ── */
+.login-main {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
 }
 
-.modal-content {
-    position: relative;
-    background-color: #2c366b;
-    padding: 2rem;
-    border-radius: 10px;
-    text-align: center;
-    color: white;
-    width: 300px;
+/* ── Tarjeta del formulario ── */
+.login-card {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
-.modal-content input {
-    width: 80%;
-    padding: 0.5rem;
-    margin: 1rem 0;
-    border-radius: 5px;
-    border: none;
+.login-card h1 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: var(--color-primary, #333);
 }
 
-.modal-content button {
-    background: linear-gradient(90deg, #a833ff, #ff298a);
-    border: none;
-    padding: 0.5rem 1rem;
-    font-weight: bold;
-    cursor: pointer;
-    border-radius: 20px;
+/* ── Imagen del robot ── */
+.robot-login-img {
+  width: 110px;
+  margin-bottom: 1.5rem;
 }
 
-.close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #fff;
-    background: none;
-    border: none;
+/* ── Etiquetas e inputs ── */
+.login-card label {
+  align-self: flex-start;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.3rem;
 }
 
+.login-card input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.login-card input:focus {
+  outline: none;
+  border-color: var(--color-primary, #5b9bd5);
+}
+
+/* ── Mensaje de error ── */
 .error-message {
-    color: red;
-    font-size: 14px;
-    margin-top: 10px;
-    display: none;
+  color: #e74c3c;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+  margin-bottom: 0.5rem;
+  align-self: flex-start;
 }
 
-.password-requirements {
-    list-style: none;
-    padding-left: 0;
-    text-align: left;
-    font-size: 13px;
-    color: #ddd;
-    margin-top: 10px;
-    margin-bottom: 10px;
+/* ── Botón principal ── */
+#loginBtn {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--color-primary, #5b9bd5);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  margin-bottom: 1rem;
 }
 
-.password-requirements li::before {
-    content: "✓ ";
-    color: #bbb;
+#loginBtn:hover {
+  background: var(--color-primary-dark, #3d7fbf);
+  transform: translateY(-1px);
 }
 
-.form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 1rem;
+#loginBtn:active {
+  transform: translateY(0);
 }
 
-.form-grid input {
-    padding: 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    font-size: 1rem;
-    width: 100%;
+/* ── Enlace a registro ── */
+.register-text {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.25rem;
 }
 
-.modal-content input {
-    width: 90%;
+.register-text a {
+  color: var(--color-primary, #5b9bd5);
+  font-weight: 600;
+  text-decoration: none;
 }
 
-.full-width {
-    grid-column: span 2;
+.register-text a:hover {
+  text-decoration: underline;
 }
 
-#email {
-    width: 95%;
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 1.75rem 1.25rem;
+  }
 }
-
-.password1 {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100%;
-}
-
-.password1 label {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 50%;
-}
-
-.password1 input {
-    align-self: flex-end;
-}
-

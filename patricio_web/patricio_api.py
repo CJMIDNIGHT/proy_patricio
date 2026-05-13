@@ -56,6 +56,7 @@ status_lock = threading.Lock()
 # ── Calamar state ─────────────────────────────────────────
 last_calamar_status = 'ESPERA'
 last_calamar_alerta = ''
+last_calamar_alerta_ts = None   # float timestamp, set when alerta fires, cleared after read
 calamar_lock = threading.Lock()
 
 
@@ -248,6 +249,8 @@ def rosbridge_subscribe_calamar():
                     last_calamar_status = data
                 elif topic == '/patricio/alerta_juego':
                     last_calamar_alerta = data
+                    if data == 'INFRACCION':
+                        last_calamar_alerta_ts = time.time()
 
     def on_open(ws):
         for topic in ['/patricio/calamar/status', '/patricio/alerta_juego']:
@@ -889,7 +892,8 @@ def calamar_comando():
     comando = body.get('comando', '').strip().upper()
 
     comandos_validos = {'START_AUTO', 'CAMBIAR_A_VERDE', 'CAMBIAR_A_ROJO', 'STOP'}
-    if comando not in comandos_validos:
+    # Also allow SET_THRESHOLD:<value> for dynamic pose sensitivity updates
+    if comando not in comandos_validos and not comando.startswith('SET_THRESHOLD:'):
         return jsonify({'ok': False, 'error': f'Comando no válido: {comando}'}), 400
 
     rosbridge_publish(
@@ -902,11 +906,20 @@ def calamar_comando():
 
 @app.route('/api/calamar/estado', methods=['GET'])
 def calamar_estado():
-    """Devuelve el último estado y alerta del juego del calamar."""
+    """Devuelve el último estado y alerta del juego del calamar.
+    alerta se consume al leerlo (se limpia después de enviarlo una vez)
+    para que el frontend no lo procese en cada poll."""
+    global last_calamar_alerta, last_calamar_alerta_ts
     with calamar_lock:
+        alerta     = last_calamar_alerta
+        alerta_ts  = last_calamar_alerta_ts
+        # Clear after read — next poll will see alerta='' unless a new one fires
+        last_calamar_alerta    = ''
+        last_calamar_alerta_ts = None
         return jsonify({
-            'status': last_calamar_status,
-            'alerta': last_calamar_alerta
+            'status':    last_calamar_status,
+            'alerta':    alerta,
+            'alerta_ts': alerta_ts   # float or null — frontend uses this for dedup
         })
 
 

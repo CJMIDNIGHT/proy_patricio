@@ -42,7 +42,7 @@ TRACKED_LANDMARKS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
 # 0.02  → very sensitive  (detects small hand/head shifts)
 # 0.05  → medium          (good starting point)
 # 0.10  → requires obvious body movement
-POSE_MOVEMENT_THRESHOLD_DEFAULT = 0.015
+POSE_MOVEMENT_THRESHOLD_DEFAULT = 0.05
 
 
 class JuegoCalamarNode(Node):
@@ -326,6 +326,9 @@ class JuegoCalamarNode(Node):
                 f'Fallback pixel: {self.fallback_pixel}')
 
         consecutive_no_person = 0  # log noise limiter
+        frame_count     = 0   # total frames evaluated this red phase
+        detection_count = 0   # total times score exceeded threshold
+        log_every       = 10  # print a score line every N frames
 
         while self._detecting and not self.stop_requested:
             with self._state_lock:
@@ -354,12 +357,10 @@ class JuegoCalamarNode(Node):
 
                 if score > self.pose_threshold:
                     infraccion = True
+                    detection_count += 1
 
             elif self.fallback_pixel:
                 # ── FALLBACK: pixel diff (higher threshold) ─
-                # Only fires if NO human skeleton is visible at all.
-                # We use 5 % of pixels — much stricter than before — to
-                # avoid false positives from background motion.
                 curr_gray = self._to_gray(frame)
                 diff      = cv2.absdiff(baseline_gray, curr_gray)
                 _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
@@ -368,28 +369,38 @@ class JuegoCalamarNode(Node):
                 score     = (active / total) * 100.0
                 method    = 'pixel_fallback'
 
-                if score > 5.0:   # hard-coded 5 % for fallback
+                if score > 5.0:
                     infraccion = True
+                    detection_count += 1
 
                 consecutive_no_person += 1
                 if consecutive_no_person % 20 == 1:
                     self.get_logger().warn(
                         'No se detecta persona — usando pixel fallback.')
             else:
-                # No person, fallback disabled → skip frame
                 consecutive_no_person += 1
                 if consecutive_no_person % 20 == 1:
                     self.get_logger().warn(
                         'No se detecta persona y fallback desactivado — esperando...')
                 continue
 
-            self.get_logger().debug(
-                f'[{method}] score={score:.4f}  umbral='
-                f'{self.pose_threshold if method == "pose" else "5.0%"}')
+            frame_count += 1
+
+            # ── Periodic score log (every N frames) ──────
+            if frame_count % log_every == 0:
+                umbral_str = (f'{self.pose_threshold:.3f}'
+                              if method == 'pose' else '5.0%')
+                self.get_logger().info(
+                    f'[MOVIMIENTO] método={method} | '
+                    f'score={score:.4f} | umbral={umbral_str} | '
+                    f'detecciones={detection_count} | frames={frame_count}'
+                )
 
             if infraccion:
                 self.get_logger().info(
-                    f'¡INFRACCIÓN! método={method} score={score:.4f}')
+                    f'¡INFRACCIÓN! método={method} score={score:.4f} | '
+                    f'detecciones_totales={detection_count} frames={frame_count}'
+                )
                 self._publicar_infraccion()
 
                 # Anti-spam: interruptible 2 s wait.
@@ -431,7 +442,11 @@ class JuegoCalamarNode(Node):
             baseline_gray = cv2.addWeighted(
                 baseline_gray, 0.95, curr_gray_for_update, 0.05, 0)
 
-        self.get_logger().info('Detección finalizada.')
+        self.get_logger().info(
+            f'Detección finalizada — resumen: '
+            f'frames={frame_count} | detecciones={detection_count} | '
+            f'infracciones_publicadas={detection_count}'
+        )
 
     # ────────────────────────────────────────────────────
     # Utilities

@@ -31,7 +31,7 @@ exec bash"
 # TERMINAL 4: web_video_server
 gnome-terminal -- bash -c "
 echo '📷 Lanzando web_video_server...';
-sleep 5;
+sleep 12;
 source ~/turtlebot3_ws/install/setup.bash;
 export ROS_DOMAIN_ID=7;
 ros2 run web_video_server web_video_server;

@@ -108,7 +108,7 @@ class JuegoCalamarNode(Node):
         self.cmd_sub    = self.create_subscription(
             String, '/patricio/calamar/cmd',  self.cmd_callback,    10)
         self.image_sub  = self.create_subscription(
-            Image,  '/camera/real',            self._image_callback, 10)
+            Image,  '/patricio/camera_processed',            self._image_callback, 10)
 
         self.publish_status(ESTADO_ESPERA)
         self.get_logger().info('juego_calamar_node listo (modo: MediaPipe Pose).')

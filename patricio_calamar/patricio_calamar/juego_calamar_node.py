@@ -101,9 +101,11 @@ class JuegoCalamarNode(Node):
         self._latest_frame = None
         self._frame_lock   = threading.Lock()
         self._frame_event  = threading.Event()
+        self._latest_pose_results = None
 
         # ── ROS topics ────────────────────────────────────
         self.status_pub = self.create_publisher(String, '/patricio/calamar/status', 10)
+        self.annotated_pub = self.create_publisher(Image, '/patricio/calamar/camera_annotated', 10)
         self.alerta_pub = self.create_publisher(String, '/patricio/alerta_juego',   10)
         self.cmd_sub    = self.create_subscription(
             String, '/patricio/calamar/cmd',  self.cmd_callback,    10)
@@ -120,11 +122,37 @@ class JuegoCalamarNode(Node):
     def _image_callback(self, msg):
         try:
             frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+            # Run MediaPipe ONCE here for both annotation and detection
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self._pose.process(rgb)
+
+            # Draw skeleton on annotated frame
+            annotated = frame.copy()
+            if results.pose_landmarks:
+                mp_drawing.draw_landmarks(
+                    annotated,
+                    results.pose_landmarks,
+                    mp_pose.POSE_CONNECTIONS,
+                    landmark_drawing_spec=mp_drawing.DrawingSpec(
+                        color=(0, 255, 120), thickness=3, circle_radius=4),
+                    connection_drawing_spec=mp_drawing.DrawingSpec(
+                        color=(255, 255, 0), thickness=2)
+                )
+
+            # Publish annotated frame
+            out_msg = self._bridge.cv2_to_imgmsg(annotated, encoding='bgr8')
+            out_msg.header = msg.header
+            self.annotated_pub.publish(out_msg)
+
+            # Share raw frame AND pose results with detection loop
             with self._frame_lock:
                 self._latest_frame = frame
+                self._latest_pose_results = results
             self._frame_event.set()
+
         except Exception as e:
-            self.get_logger().warn(f'Error convirtiendo imagen: {e}')
+            self.get_logger().warn(f'Error en _image_callback: {e}')
 
     def _get_frame(self, timeout=0.5):
         """Wait for a new frame. Returns None on timeout."""
@@ -166,18 +194,10 @@ class JuegoCalamarNode(Node):
     # ────────────────────────────────────────────────────
 
     def _extract_landmarks(self, bgr_frame):
-        """
-        Run MediaPipe Pose on a BGR frame.
-        Returns a numpy array of shape (N, 2) with (x, y) normalised coords
-        for TRACKED_LANDMARKS, or None if no person is detected.
-        Coordinates are in [0,1] range — independent of resolution.
-        """
-        rgb = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
-        results = self._pose.process(rgb)
-
-        if not results.pose_landmarks:
+        with self._frame_lock:
+            results = self._latest_pose_results
+        if results is None or not results.pose_landmarks:
             return None
-
         lm = results.pose_landmarks.landmark
         pts = np.array(
             [[lm[i].x, lm[i].y] for i in TRACKED_LANDMARKS],

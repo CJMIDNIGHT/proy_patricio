@@ -175,7 +175,7 @@
     <!-- CAMERA -->
     <div id="camera-panel">
       <img id="cameraFeed" src="" alt="Feed de cámara" />
-      <div id="camera-label">📷 /patricio/camera_processed</div>
+      <div id="camera-label">📷 /patricio/calamar/camera_annotated</div>
       <div id="pose-badge" class="idle">🦴 Pose: —</div>
       <div id="infraccion-overlay">
         <div id="infraccion-text">🚨<br>¡TE HAS MOVIDO!</div>
@@ -235,7 +235,7 @@
   // ── Camera feed ───────────────────────────────────────
   function iniciarCamara() {
     const img = document.getElementById('cameraFeed');
-    img.src = `http://${localIp}:8080/stream?topic=/patricio/camera_processed&timestamp=${Date.now()}`;
+    img.src = `http://${localIp}:8080/stream?topic=/patricio/calamar/camera_annotated&timestamp=${Date.now()}`;
   }
   iniciarCamara();
 

@@ -2,6 +2,8 @@
 
 """
 Nodo ROS2 para el juego del Calamar — "Luz Roja, Luz Verde".
+Detección de movimiento basada en MediaPipe Pose (landmarks corporales)
+en lugar de diferencia de píxeles.
 """
 
 import random
@@ -12,6 +14,8 @@ import cv2
 import numpy as np
 from cv_bridge import CvBridge
 
+import mediapipe as mp
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -21,7 +25,24 @@ ESTADO_ESPERA = 'ESPERA'
 ESTADO_VERDE  = 'LUZ_VERDE'
 ESTADO_ROJO   = 'LUZ_ROJA'
 
-MOTION_PERCENT_THRESHOLD = 1.5   # % of frame pixels that must change to fire
+# ── MediaPipe Pose setup ─────────────────────────────────────────────────────
+# We use the standard Pose solution (not the newer Tasks API) because it ships
+# with MediaPipe 0.10.x and doesn't require a model file download at runtime.
+mp_pose    = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
+
+# Landmark indices we care about — full body coverage:
+#   nose(0), shoulders(11,12), elbows(13,14), wrists(15,16),
+#   hips(23,24), knees(25,26), ankles(27,28)
+# Using all 33 is also fine; these 14 are the most reliable for occlusion.
+TRACKED_LANDMARKS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
+
+# Default movement threshold: sum of normalised-coordinate displacements
+# across all tracked landmarks between two consecutive frames.
+# 0.02  → very sensitive  (detects small hand/head shifts)
+# 0.05  → medium          (good starting point)
+# 0.10  → requires obvious body movement
+POSE_MOVEMENT_THRESHOLD_DEFAULT = 0.015
 
 
 class JuegoCalamarNode(Node):
@@ -29,28 +50,59 @@ class JuegoCalamarNode(Node):
     def __init__(self):
         super().__init__('juego_calamar_node')
 
-        self.declare_parameter('motion_threshold', 3000)   # legacy, ignored
+        # ── ROS parameters ────────────────────────────────
+        self.declare_parameter('pose_movement_threshold', POSE_MOVEMENT_THRESHOLD_DEFAULT)
+        self.declare_parameter('pose_min_detection_confidence', 0.6)
+        self.declare_parameter('pose_min_tracking_confidence',  0.5)
+        self.declare_parameter('pose_fallback_pixel', True)   # pixel-diff if no person found
         self.declare_parameter('verde_min_sec', 3.0)
         self.declare_parameter('verde_max_sec', 6.0)
         self.declare_parameter('rojo_min_sec',  3.0)
         self.declare_parameter('rojo_max_sec',  5.0)
+
+        self.pose_threshold = self.get_parameter(
+            'pose_movement_threshold').get_parameter_value().double_value
+        det_conf = self.get_parameter(
+            'pose_min_detection_confidence').get_parameter_value().double_value
+        trk_conf = self.get_parameter(
+            'pose_min_tracking_confidence').get_parameter_value().double_value
+        self.fallback_pixel = self.get_parameter(
+            'pose_fallback_pixel').get_parameter_value().bool_value
 
         self.verde_min = self.get_parameter('verde_min_sec').get_parameter_value().double_value
         self.verde_max = self.get_parameter('verde_max_sec').get_parameter_value().double_value
         self.rojo_min  = self.get_parameter('rojo_min_sec').get_parameter_value().double_value
         self.rojo_max  = self.get_parameter('rojo_max_sec').get_parameter_value().double_value
 
+        # ── MediaPipe Pose ────────────────────────────────
+        # static_image_mode=False → treats input as a video stream (faster tracking)
+        self._pose = mp_pose.Pose(
+            static_image_mode=False,
+            model_complexity=1,             # 0=fast/lite, 1=balanced, 2=heavy
+            smooth_landmarks=True,
+            enable_segmentation=False,
+            min_detection_confidence=det_conf,
+            min_tracking_confidence=trk_conf,
+        )
+        self.get_logger().info(
+            f'MediaPipe Pose cargado (det={det_conf}, trk={trk_conf}, '
+            f'umbral_movimiento={self.pose_threshold})'
+        )
+
+        # ── Game state ────────────────────────────────────
         self.estado         = ESTADO_ESPERA
         self.stop_requested = False
         self._detecting     = False
         self._game_thread   = None
         self._state_lock    = threading.Lock()
 
+        # ── Frame pipeline ────────────────────────────────
         self._bridge       = CvBridge()
         self._latest_frame = None
         self._frame_lock   = threading.Lock()
         self._frame_event  = threading.Event()
 
+        # ── ROS topics ────────────────────────────────────
         self.status_pub = self.create_publisher(String, '/patricio/calamar/status', 10)
         self.alerta_pub = self.create_publisher(String, '/patricio/alerta_juego',   10)
         self.cmd_sub    = self.create_subscription(
@@ -59,9 +111,11 @@ class JuegoCalamarNode(Node):
             Image,  '/camera/real',            self._image_callback, 10)
 
         self.publish_status(ESTADO_ESPERA)
-        self.get_logger().info('juego_calamar_node listo.')
+        self.get_logger().info('juego_calamar_node listo (modo: MediaPipe Pose).')
 
-    # ── Imagen ───────────────────────────────────────────
+    # ────────────────────────────────────────────────────
+    # Image pipeline
+    # ────────────────────────────────────────────────────
 
     def _image_callback(self, msg):
         try:
@@ -73,47 +127,80 @@ class JuegoCalamarNode(Node):
             self.get_logger().warn(f'Error convirtiendo imagen: {e}')
 
     def _get_frame(self, timeout=0.5):
-        """Wait for a new frame and return it. Returns None on timeout."""
+        """Wait for a new frame. Returns None on timeout."""
         self._frame_event.wait(timeout=timeout)
         self._frame_event.clear()
         with self._frame_lock:
             return self._latest_frame.copy() if self._latest_frame is not None else None
 
-    def _flush_and_get_stable_baseline(self, n_warmup=4):
+    def _flush_frames(self, n_warmup=4):
         """
-        Discards all queued frames, then collects n_warmup fresh frames
-        and returns the last one as a stable baseline for comparison.
-
-        This must be called:
-          1. When red light first starts.
-          2. After each infraction, once the anti-spam sleep finishes.
-
-        Without this, stale frames from before the red phase (or from
-        the moment of movement) get compared against the new baseline
-        and trigger false positives in a loop.
+        Flush stale frames and wait for n_warmup fresh ones.
+        Returns the last frame (used as stable baseline for pixel fallback),
+        AND the landmark array from that frame (pose baseline).
+        Returns (None, None) if cancelled.
         """
-        # Step 1 — flush: clear the event and discard whatever is in _latest_frame
         self._frame_event.clear()
         with self._frame_lock:
             self._latest_frame = None
 
-        # Step 2 — wait for n_warmup genuinely new frames from the camera
-        baseline = None
+        last_frame     = None
+        last_landmarks = None
         collected = 0
+
         while collected < n_warmup:
-            if not self._detecting:   # bail out if red light was cancelled
-                return None
+            if not self._detecting:
+                return None, None
             frame = self._get_frame(timeout=1.0)
             if frame is None:
                 self.get_logger().warn('Esperando frame para baseline...')
                 continue
-            gris = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            baseline = cv2.GaussianBlur(gris, (21, 21), 0)
+            last_frame = frame
+            last_landmarks = self._extract_landmarks(frame)
             collected += 1
 
-        return baseline   # the last of the n_warmup frames is the baseline
+        return last_frame, last_landmarks
 
-    # ── Comandos ─────────────────────────────────────────
+    # ────────────────────────────────────────────────────
+    # MediaPipe helpers
+    # ────────────────────────────────────────────────────
+
+    def _extract_landmarks(self, bgr_frame):
+        """
+        Run MediaPipe Pose on a BGR frame.
+        Returns a numpy array of shape (N, 2) with (x, y) normalised coords
+        for TRACKED_LANDMARKS, or None if no person is detected.
+        Coordinates are in [0,1] range — independent of resolution.
+        """
+        rgb = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
+        results = self._pose.process(rgb)
+
+        if not results.pose_landmarks:
+            return None
+
+        lm = results.pose_landmarks.landmark
+        pts = np.array(
+            [[lm[i].x, lm[i].y] for i in TRACKED_LANDMARKS],
+            dtype=np.float32
+        )
+        return pts
+
+    @staticmethod
+    def _landmark_movement(prev_lm, curr_lm):
+        """
+        Compute total movement score between two landmark arrays.
+        Score = mean Euclidean distance across all tracked landmarks.
+        Both arrays must have the same shape; returns 0.0 if either is None.
+        """
+        if prev_lm is None or curr_lm is None:
+            return 0.0
+        # Per-landmark Euclidean distance, then mean across all landmarks
+        dists = np.linalg.norm(curr_lm - prev_lm, axis=1)
+        return float(np.mean(dists))
+
+    # ────────────────────────────────────────────────────
+    # Commands
+    # ────────────────────────────────────────────────────
 
     def cmd_callback(self, msg):
         cmd = msg.data.strip().upper()
@@ -122,8 +209,19 @@ class JuegoCalamarNode(Node):
         elif cmd == 'CAMBIAR_A_VERDE': self._set_manual(ESTADO_VERDE)
         elif cmd == 'CAMBIAR_A_ROJO':  self._set_manual(ESTADO_ROJO)
         elif cmd == 'STOP':            self._detener()
+        elif cmd.startswith('SET_THRESHOLD:'):
+            # Dynamic threshold update from frontend
+            # e.g.  SET_THRESHOLD:0.04
+            try:
+                val = float(cmd.split(':')[1])
+                self.pose_threshold = val
+                self.get_logger().info(f'Umbral actualizado → {val}')
+            except (IndexError, ValueError):
+                self.get_logger().warn('SET_THRESHOLD mal formado, ignorado.')
 
-    # ── Modo automático ───────────────────────────────────
+    # ────────────────────────────────────────────────────
+    # Auto mode
+    # ────────────────────────────────────────────────────
 
     def _iniciar_auto(self):
         with self._state_lock:
@@ -163,7 +261,9 @@ class JuegoCalamarNode(Node):
         self._cambiar_estado(ESTADO_ESPERA)
         self.get_logger().info('Modo automático detenido.')
 
-    # ── Modo manual ───────────────────────────────────────
+    # ────────────────────────────────────────────────────
+    # Manual mode
+    # ────────────────────────────────────────────────────
 
     def _set_manual(self, nuevo_estado):
         self._detecting = False
@@ -180,33 +280,52 @@ class JuegoCalamarNode(Node):
                 target=self._detectar_movimiento, args=(None,), daemon=True)
             self._game_thread.start()
 
-    # ── Detección de movimiento ───────────────────────────
+    # ────────────────────────────────────────────────────
+    # Movement detection  ← CORE CHANGE
+    # ────────────────────────────────────────────────────
 
     def _detectar_movimiento(self, duracion_seg):
         """
-        Motion detection loop. Only runs while self._detecting is True
-        and estado == LUZ_ROJA.
+        Pose-based movement detection loop.
 
-        Key design:
-          - _flush_and_get_stable_baseline() is called at the START and
-            AFTER EACH INFRACTION. This prevents the loop from comparing
-            a stale/mid-movement frame against a new one and firing again
-            immediately, which was the cause of the infinite detection trap.
-          - The loop itself only does one thing per iteration: compare the
-            current frame against the last known-stable frame. If movement
-            is found, it sleeps, then rebuilds the baseline from scratch
-            before resuming comparison.
+        Strategy:
+          1. Flush stale frames and build a stable baseline (pose landmarks).
+          2. Each iteration:
+               a. Extract landmarks from the current frame.
+               b. If a person IS detected → compare landmark positions to baseline.
+                  Movement score = mean displacement across 14 key joints.
+               c. If NO person detected AND fallback_pixel=True → use pixel diff
+                  as a safety net (same logic as before, higher threshold).
+          3. On infraction: anti-spam sleep, then rebuild baseline from scratch.
+          4. If no infraction: update baseline landmark array gradually.
+
+        Why landmarks beat pixels:
+          - Immune to lighting changes, camera noise, background motion.
+          - Measures actual skeletal movement, not raw frame differences.
+          - Gracefully degrades: if partial body visible, only visible joints count.
         """
         t_inicio = time.time()
         self.get_logger().info('Detección iniciada — construyendo baseline...')
 
-        # Build initial stable baseline
-        frame_anterior = self._flush_and_get_stable_baseline(n_warmup=4)
-        if frame_anterior is None:
+        # ── Build initial baseline ────────────────────────
+        baseline_frame, baseline_lm = self._flush_frames(n_warmup=4)
+        if baseline_frame is None:
             self.get_logger().warn('Baseline cancelado, saliendo.')
             return
 
-        self.get_logger().info('Baseline listo. Detectando movimiento.')
+        # Pre-compute pixel baseline for fallback (greyscale + blur)
+        baseline_gray = self._to_gray(baseline_frame)
+
+        if baseline_lm is not None:
+            self.get_logger().info(
+                f'Baseline listo CON pose ({len(TRACKED_LANDMARKS)} landmarks). '
+                f'Umbral: {self.pose_threshold:.3f}')
+        else:
+            self.get_logger().warn(
+                'Baseline listo SIN pose (nadie detectado). '
+                f'Fallback pixel: {self.fallback_pixel}')
+
+        consecutive_no_person = 0  # log noise limiter
 
         while self._detecting and not self.stop_requested:
             with self._state_lock:
@@ -220,52 +339,119 @@ class JuegoCalamarNode(Node):
             if frame is None:
                 continue
 
-            gris = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            gris = cv2.GaussianBlur(gris, (21, 21), 0)
+            # ── Extract current pose ──────────────────────
+            curr_lm = self._extract_landmarks(frame)
 
-            diff = cv2.absdiff(frame_anterior, gris)
-            _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+            infraccion = False
+            score      = 0.0
+            method     = 'none'
 
-            total_pixeles   = thresh.shape[0] * thresh.shape[1]
-            pixeles_activos = int(np.sum(thresh) / 255)
-            porcentaje      = (pixeles_activos / total_pixeles) * 100.0
+            if curr_lm is not None and baseline_lm is not None:
+                # ── PRIMARY: pose landmark comparison ─────
+                score  = self._landmark_movement(baseline_lm, curr_lm)
+                method = 'pose'
+                consecutive_no_person = 0
+
+                if score > self.pose_threshold:
+                    infraccion = True
+
+            elif self.fallback_pixel:
+                # ── FALLBACK: pixel diff (higher threshold) ─
+                # Only fires if NO human skeleton is visible at all.
+                # We use 5 % of pixels — much stricter than before — to
+                # avoid false positives from background motion.
+                curr_gray = self._to_gray(frame)
+                diff      = cv2.absdiff(baseline_gray, curr_gray)
+                _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+                total     = thresh.shape[0] * thresh.shape[1]
+                active    = int(np.sum(thresh) / 255)
+                score     = (active / total) * 100.0
+                method    = 'pixel_fallback'
+
+                if score > 5.0:   # hard-coded 5 % for fallback
+                    infraccion = True
+
+                consecutive_no_person += 1
+                if consecutive_no_person % 20 == 1:
+                    self.get_logger().warn(
+                        'No se detecta persona — usando pixel fallback.')
+            else:
+                # No person, fallback disabled → skip frame
+                consecutive_no_person += 1
+                if consecutive_no_person % 20 == 1:
+                    self.get_logger().warn(
+                        'No se detecta persona y fallback desactivado — esperando...')
+                continue
 
             self.get_logger().debug(
-                f'Movimiento: {porcentaje:.2f}% (umbral: {MOTION_PERCENT_THRESHOLD}%)')
+                f'[{method}] score={score:.4f}  umbral='
+                f'{self.pose_threshold if method == "pose" else "5.0%"}')
 
-            if porcentaje > MOTION_PERCENT_THRESHOLD:
-                self.get_logger().info(f'¡INFRACCIÓN! {porcentaje:.2f}% píxeles')
+            if infraccion:
+                self.get_logger().info(
+                    f'¡INFRACCIÓN! método={method} score={score:.4f}')
                 self._publicar_infraccion()
 
-                # Anti-spam sleep — person finishes moving
-                time.sleep(2.0)
+                # Anti-spam: interruptible 2 s wait.
+                # Checks _detecting and estado every 100 ms so that if the game
+                # switches to LUZ_VERDE or STOP mid-wait we exit immediately
+                # instead of waking up 2 s later and running baseline rebuild
+                # + detection in the wrong state.
+                for _ in range(20):
+                    if not self._detecting:
+                        break
+                    with self._state_lock:
+                        if self.estado != ESTADO_ROJO:
+                            break
+                    time.sleep(0.1)
 
+                # Re-check after sleep — game may have moved on.
                 if not self._detecting:
                     break
-
-                # Rebuild baseline from scratch AFTER movement has stopped.
-                # This is the critical fix: without this, the next comparison
-                # uses a mid-movement frame as baseline and fires again.
-                self.get_logger().info('Reconstruyendo baseline tras infracción...')
-                frame_anterior = self._flush_and_get_stable_baseline(n_warmup=4)
-                if frame_anterior is None:
+                with self._state_lock:
+                    still_red = (self.estado == ESTADO_ROJO)
+                if not still_red:
                     break
+
+                # Rebuild baseline AFTER movement stops
+                self.get_logger().info('Reconstruyendo baseline tras infracción...')
+                baseline_frame, baseline_lm = self._flush_frames(n_warmup=4)
+                if baseline_frame is None:
+                    break
+                baseline_gray = self._to_gray(baseline_frame)
                 self.get_logger().info('Baseline reconstruido. Reanudando detección.')
                 continue
 
-            # No movement — update baseline gradually (rolling average)
-            # This handles slow lighting changes without resetting fully.
-            frame_anterior = gris
+            # ── No infraction: rolling baseline update ────
+            # Pose: replace landmarks directly (they're already stable from MediaPipe smoothing)
+            if curr_lm is not None:
+                baseline_lm = curr_lm
+            # Pixel: weighted rolling average (handles slow lighting drift)
+            curr_gray_for_update = self._to_gray(frame)
+            baseline_gray = cv2.addWeighted(
+                baseline_gray, 0.95, curr_gray_for_update, 0.05, 0)
 
         self.get_logger().info('Detección finalizada.')
 
+    # ────────────────────────────────────────────────────
+    # Utilities
+    # ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _to_gray(bgr_frame):
+        """Convert BGR frame to blurred greyscale (for pixel fallback)."""
+        gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
+        return cv2.GaussianBlur(gray, (21, 21), 0)
+
     def _publicar_infraccion(self):
+        # Publish ONLY to alerta_pub.
+        # status_pub is owned exclusively by _cambiar_estado / publish_status.
+        # Publishing INFRACCION to status_pub used to permanently overwrite the
+        # game state (LUZ_ROJA/LUZ_VERDE/ESPERA) and the frontend would keep
+        # showing "INFRACCION" forever until the next state transition.
         msg = String()
         msg.data = 'INFRACCION'
         self.alerta_pub.publish(msg)
-        self.status_pub.publish(msg)
-
-    # ── Helpers ───────────────────────────────────────────
 
     def _cambiar_estado(self, nuevo):
         with self._state_lock:
@@ -290,6 +476,11 @@ class JuegoCalamarNode(Node):
         msg = String()
         msg.data = text
         self.status_pub.publish(msg)
+
+    def destroy_node(self):
+        """Clean up MediaPipe resources on shutdown."""
+        self._pose.close()
+        super().destroy_node()
 
 
 def main(args=None):

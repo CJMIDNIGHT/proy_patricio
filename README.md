@@ -92,7 +92,11 @@ sudo apt install python3-flask-cors
 ```bash
 pip install mediapipe --break-system-packages
 pip install opencv-python --break-system-packages
+pip install sqlalchemy --user --break-system-packages
+pip install dotenv --user --break-system-packages
 ```
+
+⚠️ `sqlalchemy` y `dotenv` son necesarios para el funcionamiento de la base de datos de la API Flask.
 
 ### Gestión de dependencias (rosdep)
 ```bash

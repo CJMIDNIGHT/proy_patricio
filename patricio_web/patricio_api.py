@@ -16,6 +16,14 @@ Endpoints:
   GET  /api/historico_dia     → juegos del día agrupados (favorito) + detalle
   POST /api/auth/login        → comprobar usuario / correo + contraseña (bcrypt)
   POST /api/auth/register      → alta familia (rol fijo familia), contraseña con política fuerte
+  POST /api/juego/iniciar        → calls /start_game service via rosbridge
+  POST /api/juego/detener        → publishes STOP to /patricio/pilla_pilla/cmd
+  GET  /api/juego/estado         → returns last known status
+
+  POST /api/calamar/comando      → publishes command to /patricio/calamar/cmd
+                                   body: { "comando": "START_AUTO" | "CAMBIAR_A_VERDE"
+                                                     | "CAMBIAR_A_ROJO" | "STOP" }
+  GET  /api/calamar/estado       → returns last known calamar status + alert
 """
 
 import json
@@ -44,6 +52,11 @@ socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
 ROSBRIDGE_URL = 'ws://localhost:9090'
 last_status = 'Descansando'
 status_lock = threading.Lock()
+
+# ── Calamar state ─────────────────────────────────────────
+last_calamar_status = 'ESPERA'
+last_calamar_alerta = ''
+calamar_lock = threading.Lock()
 
 
 # ── Rosbridge helper ──────────────────────────────────────
@@ -142,12 +155,12 @@ def rosbridge_subscribe_status():
 
     def on_error(ws, error):
         print(f'Status subscriber error: {error}')
-        time.sleep(3)  # wait before reconnecting
+        time.sleep(3)
 
     def on_close(ws, *args):
         print('Status subscriber closed, reconnecting...')
         time.sleep(3)
-        rosbridge_subscribe_status()  # reconnect
+        rosbridge_subscribe_status()
 
     ws = websocket.WebSocketApp(
         ROSBRIDGE_URL,
@@ -157,9 +170,10 @@ def rosbridge_subscribe_status():
         on_close=on_close
     )
     ws.run_forever()
-    
+
+
 def rosbridge_subscribe_status_escondite():
-    global last_status  # puedes reutilizar la misma variable o crear last_status_escondite
+    global last_status
 
     def on_message(ws, message):
         global last_status
@@ -171,7 +185,7 @@ def rosbridge_subscribe_status_escondite():
     def on_open(ws):
         payload = {
             'op': 'subscribe',
-            'topic': '/patricio/escondite/status',   # ← tópico del escondite
+            'topic': '/patricio/escondite/status',
             'type': 'std_msgs/msg/String'
         }
         ws.send(json.dumps(payload))
@@ -216,6 +230,54 @@ def _emit_incidencia_revisada(inc_id: int) -> None:
 
 
 # ── Flask routes ──────────────────────────────────────────
+def rosbridge_subscribe_calamar():
+    """
+    Background thread — subscribes to both calamar status and alert topics.
+    Keeps last_calamar_status and last_calamar_alerta up to date.
+    """
+    global last_calamar_status, last_calamar_alerta
+
+    def on_message(ws, message):
+        global last_calamar_status, last_calamar_alerta
+        msg = json.loads(message)
+        if msg.get('op') == 'publish':
+            topic = msg.get('topic', '')
+            data = msg.get('msg', {}).get('data', '')
+            with calamar_lock:
+                if topic == '/patricio/calamar/status':
+                    last_calamar_status = data
+                elif topic == '/patricio/alerta_juego':
+                    last_calamar_alerta = data
+
+    def on_open(ws):
+        for topic in ['/patricio/calamar/status', '/patricio/alerta_juego']:
+            ws.send(json.dumps({
+                'op': 'subscribe',
+                'topic': topic,
+                'type': 'std_msgs/msg/String'
+            }))
+        print('Subscribed to calamar topics')
+
+    def on_error(ws, error):
+        print(f'Calamar subscriber error: {error}')
+        time.sleep(3)
+
+    def on_close(ws, *args):
+        print('Calamar subscriber closed, reconnecting...')
+        time.sleep(3)
+        rosbridge_subscribe_calamar()
+
+    ws = websocket.WebSocketApp(
+        ROSBRIDGE_URL,
+        on_open=on_open,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close
+    )
+    ws.run_forever()
+
+
+# ── Flask routes — juegos existentes ─────────────────────
 
 @app.route('/api/juego/iniciar', methods=['POST'])
 def iniciar_juego():
@@ -243,6 +305,7 @@ def iniciar_juego():
 
     started = result['response'].get('started', False)
     return jsonify({'started': started})
+
 
 @app.route('/api/juego/detener', methods=['POST'])
 def detener_juego():
@@ -764,7 +827,6 @@ def iniciar_escondite():
     if not poses:
         return jsonify({'success': False, 'error': 'No se enviaron poses'}), 400
 
-    # Construir el PoseArray para el servicio
     pose_list = [
         {
             'position': {'x': p['x'], 'y': p['y'], 'z': 0.0},
@@ -803,11 +865,49 @@ def detener_escondite():
         service_type='patricio_interfaces/srv/IniciarEscondite',
         args={
             'command': 'STOP',
-            'poses': {'header': {'frame_id': 'map', 'stamp': {'sec': 0, 'nanosec': 0}}, 'poses': []}
+            'poses': {
+                'header': {'frame_id': 'map', 'stamp': {'sec': 0, 'nanosec': 0}},
+                'poses': []
+            }
         },
         timeout=5.0
     )
     return jsonify({'stopped': True})
+
+
+# ── Flask routes — Juego del Calamar ─────────────────────
+
+@app.route('/api/calamar/comando', methods=['POST'])
+def calamar_comando():
+    """
+    Envía un comando al nodo juego_calamar_node.
+
+    Body JSON: { "comando": "START_AUTO" | "CAMBIAR_A_VERDE"
+                            | "CAMBIAR_A_ROJO" | "STOP" }
+    """
+    body = request.get_json(force=True)
+    comando = body.get('comando', '').strip().upper()
+
+    comandos_validos = {'START_AUTO', 'CAMBIAR_A_VERDE', 'CAMBIAR_A_ROJO', 'STOP'}
+    if comando not in comandos_validos:
+        return jsonify({'ok': False, 'error': f'Comando no válido: {comando}'}), 400
+
+    rosbridge_publish(
+        topic='/patricio/calamar/cmd',
+        msg_type='std_msgs/msg/String',
+        data={'data': comando}
+    )
+    return jsonify({'ok': True, 'comando': comando})
+
+
+@app.route('/api/calamar/estado', methods=['GET'])
+def calamar_estado():
+    """Devuelve el último estado y alerta del juego del calamar."""
+    with calamar_lock:
+        return jsonify({
+            'status': last_calamar_status,
+            'alerta': last_calamar_alerta
+        })
 
 
 # ── Entry point ───────────────────────────────────────────
@@ -819,19 +919,30 @@ def on_shutdown():
         msg_type='std_msgs/msg/String',
         data={'data': 'STOP'}
     )
+    rosbridge_publish(
+        topic='/patricio/calamar/cmd',
+        msg_type='std_msgs/msg/String',
+        data={'data': 'STOP'}
+    )
     rosbridge_call_service(
         service='/patricio/escondite/iniciar',
         service_type='patricio_interfaces/srv/IniciarEscondite',
-        args={'command': 'STOP', 'poses': {'header': {'frame_id': 'map', 'stamp': {'sec': 0, 'nanosec': 0}}, 'poses': []}}
+        args={
+            'command': 'STOP',
+            'poses': {
+                'header': {'frame_id': 'map', 'stamp': {'sec': 0, 'nanosec': 0}},
+                'poses': []
+            }
+        }
     )
     time.sleep(1)
 
+
 if __name__ == '__main__':
-    # Start status subscriber in background
-    sub_thread = threading.Thread(target=rosbridge_subscribe_status, daemon=True)
-    sub_thread.start()
-    sub_thread_escondite = threading.Thread(target=rosbridge_subscribe_status_escondite, daemon=True)
-    sub_thread_escondite.start()
+    # Status subscribers in background
+    threading.Thread(target=rosbridge_subscribe_status, daemon=True).start()
+    threading.Thread(target=rosbridge_subscribe_status_escondite, daemon=True).start()
+    threading.Thread(target=rosbridge_subscribe_calamar, daemon=True).start()
 
     print('Starting Patricio API + Socket.IO on http://0.0.0.0:5000')
 

@@ -44,7 +44,21 @@
                   <span class="game-label">Escondite</span>
                   <span class="game-sub">Búsqueda y detección</span>
                 </button>
+
+                <!-- ── JUEGO DEL CALAMAR ── -->
+                <button class="boton game-btn" id="btn_calamar_auto">
+                  <span class="game-icon">🦑</span>
+                  <span class="game-label">Juego del Calamar</span>
+                  <span class="game-sub">Luz Roja / Luz Verde</span>
+                </button>
               </div>
+
+              <!-- Controles manuales del Calamar — visibles sólo cuando el juego está activo -->
+              <div id="calamar_manual_controls" class="d-flex justify-content-center gap-3 flex-wrap mt-3" style="display:none;">
+                <button class="boton" id="btn_luz_verde">🟢 Luz Verde</button>
+                <button class="boton" id="btn_luz_roja">🔴 Luz Roja</button>
+              </div>
+
               <div class="d-flex justify-content-center mt-3">
                 <button class="boton" id="btn_stop_juego">Detener juego</button>
               </div>

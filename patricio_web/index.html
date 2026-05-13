@@ -2,42 +2,194 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Patricio: robot educativo para niños y niñas de 4 a 6 años.">
   <title>Patricio | Inicio</title>
+
   <link rel="stylesheet" href="css/styles_generales.css">
   <link rel="stylesheet" href="css/styles_index.css">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@700;800&display=swap" rel="stylesheet">
   <link rel="icon" href="images/logo_patricio.png" type="image/png">
 </head>
 <body>
-  <header>
-    <a href="index.html">
-      <img src="images/logo_patricio.png" alt="Patricio" class="logo">
-    </a>
-    <div class="user-icon" id="userIcon">
-      <i class="bi bi-person-circle"></i>
+
+  <!-- ── NAVBAR ── -->
+  <header class="navbar">
+    <div class="nav-left">
+      <a href="index.html">
+        <img src="images/logo_patricio.png" class="logo-circle" alt="Patricio logo">
+      </a>
+    </div>
+
+    <nav class="nav-links">
+      <a href="#producto">Nuestro Producto</a>
+      <a href="#sobre">Sobre nosotros</a>
+      <a href="#contacto">Contacto</a>
+    </nav>
+
+    <div class="nav-right">
+      <a class="login" href="login.html">Login ›</a>
+      <a class="btn-signup" href="registro.html">Apúntate!</a>
     </div>
   </header>
 
-  <main>
-    <section class="content">
-      <h1>Patricio</h1>
-      <p>
-        El compañero robot del aula: juega, aprende y explora con actividades pensadas para
-        niños y niñas de 4 a 6 años. Las familias y el equipo educativo pueden seguir el progreso
-        y vivir la experiencia con seguridad y diversión.
+
+  <!-- ── HERO ── -->
+  <section class="hero">
+    <img src="images/children.png" class="hero-bg" alt="Niños jugando con Patricio">
+    <div class="hero-content">
+      <h1>Con Patricio,<br>Todos tienen un<br>amigo para<br><span>Aprender,<br>Jugar y<br>Crecer</span></h1>
+    </div>
+    <a href="#producto" class="hero-scroll-btn">
+      <i class="fa-solid fa-chevron-down"></i>
+    </a>
+  </section>
+
+
+  <!-- ── DECORATIVE DOODLES DIVIDER ── -->
+  <div class="doodle-divider"></div>
+
+
+  <!-- ── NUESTRO PRODUCTO ── -->
+  <section id="producto" class="section-producto">
+    <div class="producto-card">
+      <div class="producto-inner">
+
+        <div class="producto-img-col">
+          <img src="images/robot.png" alt="Robot Patricio" class="producto-robot">
+        </div>
+
+        <div class="producto-text-col">
+          <h2 class="section-title center">Nuestro Producto</h2>
+          <p class="producto-desc">
+            Patricio es un robot educativo digital que combina juego, aprendizaje y seguimiento del progreso
+            para que niños y niñas de 4 a 6 años exploren el mundo con curiosidad, seguridad y diversión.
+            Familias y equipos educativos acompañan cada paso.
+          </p>
+
+          <div class="producto-grid">
+            <div class="feature-v">
+              <i class="fa-solid fa-graduation-cap icon-feature"></i>
+              <h4>Currículum adaptado</h4>
+              <p>Actividades alineadas con las etapas del desarrollo de 4 a 6 años para un aprendizaje significativo.</p>
+            </div>
+            <div class="feature-v">
+              <i class="fa-solid fa-gamepad icon-feature"></i>
+              <h4>Aprendizaje jugando</h4>
+              <p>Juegos interactivos que mantienen la atención y refuerzan conceptos clave de forma natural.</p>
+            </div>
+            <div class="feature-v">
+              <i class="fa-solid fa-face-smile icon-feature"></i>
+              <h4>Robot compañero</h4>
+              <p>Patricio guía cada sesión con una personalidad cercana, motivadora y adaptada a cada niño.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ── DECORATIVE DOODLES DIVIDER ── -->
+  <div class="doodle-divider doodle-divider--flip"></div>
+
+
+  <!-- ── SOBRE NOSOTROS ── -->
+  <section id="sobre" class="section-nosotros">
+    <div class="nosotros-card">
+
+      <h2 class="section-title orange">Sobre nosotros...</h2>
+      <p class="nosotros-desc">
+        Somos un equipo apasionado por la educación temprana y la tecnología, comprometidos con crear
+        herramientas que pongan a los niños en el centro. Diseñamos experiencias seguras, divertidas
+        y pedagógicamente sólidas para familias y centros educativos.
       </p>
-      <a href="registro.html" class="btn-registrate">REGÍSTRATE</a>
-      <p class="login-text">¿Ya tienes cuenta? <br> <a href="login.html">Iniciar sesión</a></p>
-    </section>
 
-    <img src="images/robot.png" alt="Patricio, robot educativo" class="robot-img">
-  </main>
+      <div class="nosotros-grid">
+        <div class="nosotros-card-item">
+          <i class="fa-solid fa-heart icon-feature"></i>
+          <p>Diseño centrado en el bienestar y el desarrollo infantil.</p>
+        </div>
+        <div class="nosotros-card-item">
+          <i class="fa-solid fa-users icon-feature"></i>
+          <p>Colaboración estrecha con familias, docentes y centros educativos.</p>
+        </div>
+        <div class="nosotros-card-item">
+          <i class="fa-solid fa-pen-ruler icon-feature"></i>
+          <p>Experiencias sencillas, visualmente atractivas y pedagógicamente sólidas.</p>
+        </div>
+        <div class="nosotros-card-item">
+          <i class="fa-solid fa-lock icon-feature"></i>
+          <p>Protección de datos y privacidad infantil garantizadas en todo momento.</p>
+        </div>
+        <div class="nosotros-card-item">
+          <i class="fa-solid fa-lightbulb icon-feature"></i>
+          <p>Innovación continua basada en evidencia educativa y retroalimentación real.</p>
+        </div>
+      </div>
 
-  <footer>
-    <a href="politica_privacidad.html">POLÍTICA PRIVACIDAD</a>
-    <span>Patricio 2026 ®</span>
-    <a href="contacto.html" class="contact-link">CONTACTO</a>
+      <div class="nosotros-cta">
+        <p><strong>Confíanos con el desarrollo social de tu hijo!</strong></p>
+        <a class="btn-signup btn-cta-large" href="registro.html">Apúntate!</a>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- ── CONTACTO / FOOTER ── -->
+  <footer id="contacto" class="contact-section">
+    <div class="contact-wrapper">
+
+      <div class="contact-left">
+        <h2 class="contact-title">¡Contáctanos!</h2>
+        <p class="contact-phone">Tel : +34 965 258 736</p>
+        <p class="contact-text">Puedes escribirnos desde aquí :</p>
+        <ul class="contact-list">
+          <li>info@patricio.edu</li>
+          <li>soporte@patricio.edu</li>
+          <li>centros@patricio.edu</li>
+        </ul>
+      </div>
+
+      <div class="contact-right">
+        <p class="map-label">Nos puedes encontrar aquí :</p>
+        <div class="contact-map-container">
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3037.6!2d-3.703!3d40.416!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDDCsDI0JzU4LjAiTiAzwrA0MicxMC44Ilc!5e0!3m2!1ses!2ses!4v1600000000000"
+            width="100%" height="100%" frameborder="0" style="border:0;" allowfullscreen>
+          </iframe>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer bottom -->
+    <div class="footer-bottom">
+      <img src="images/logo_patricio.png" class="footer-logo" alt="Patricio logo">
+      <div class="footer-links">
+        <a href="#producto">Product</a>
+        <a href="#sobre">About us</a>
+        <a href="#">FQ&A</a>
+        <a href="#contacto">Contact</a>
+      </div>
+    </div>
+
+    <div class="footer-legal">
+      <div class="legal-container">
+        <span>©2026 Patricio</span>
+        <div class="legal-links">
+          <a href="#">Aviso legal</a>
+          <a href="#">Política de cookies</a>
+          <a href="politica_privacidad.html">Política de privacidad</a>
+          <a href="#">Gestión de Cookies</a>
+        </div>
+      </div>
+    </div>
   </footer>
 
 </body>

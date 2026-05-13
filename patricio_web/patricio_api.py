@@ -56,6 +56,8 @@ status_lock = threading.Lock()
 # ── Calamar state ─────────────────────────────────────────
 last_calamar_status = 'ESPERA'
 last_calamar_alerta = ''
+last_calamar_alerta_ts = 0.0
+last_calamar_pose = False
 calamar_lock = threading.Lock()
 
 
@@ -235,10 +237,10 @@ def rosbridge_subscribe_calamar():
     Background thread — subscribes to both calamar status and alert topics.
     Keeps last_calamar_status and last_calamar_alerta up to date.
     """
-    global last_calamar_status, last_calamar_alerta
+    global last_calamar_status, last_calamar_alerta, last_calamar_alerta_ts, last_calamar_pose
 
     def on_message(ws, message):
-        global last_calamar_status, last_calamar_alerta
+        global last_calamar_status, last_calamar_alerta, last_calamar_alerta_ts, last_calamar_pose
         msg = json.loads(message)
         if msg.get('op') == 'publish':
             topic = msg.get('topic', '')
@@ -247,7 +249,8 @@ def rosbridge_subscribe_calamar():
                 if topic == '/patricio/calamar/status':
                     last_calamar_status = data
                 elif topic == '/patricio/alerta_juego':
-                    last_calamar_alerta = data
+                    last_calamar_alerta    = data
+                    last_calamar_alerta_ts = time.time()
 
     def on_open(ws):
         for topic in ['/patricio/calamar/status', '/patricio/alerta_juego']:
@@ -905,8 +908,10 @@ def calamar_estado():
     """Devuelve el último estado y alerta del juego del calamar."""
     with calamar_lock:
         return jsonify({
-            'status': last_calamar_status,
-            'alerta': last_calamar_alerta
+            'status':        last_calamar_status,
+            'alerta':        last_calamar_alerta,
+            'alerta_ts':     last_calamar_alerta_ts,
+            'pose_detected': last_calamar_pose
         })
 
 
